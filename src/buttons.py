@@ -3,6 +3,7 @@
 
 import rospy
 from cs_sawyer.msg import ButtonPressed, LightStatus
+from std_msgs.msg import Int32
 try:
     import RPi.GPIO as GPIO
 except ImportError:
@@ -18,7 +19,7 @@ class Buttons(object):
     PIN_LED_FEAR = 17
     PIN_BUTTON_FEAR = 27
 
-    MIN_PRESS_INTERVAL = 5      # Interval in seconds in which a second press will be ignored
+    MIN_PRESS_INTERVAL = 7      # Interval in seconds in which a second press will be ignored
 
     FAST_BLINK_DURATION = 0.25  # Second of blinking on and off
     SLOW_BLINK_DURATION = 1     # Second of blinking on and off
@@ -37,12 +38,13 @@ class Buttons(object):
         if gpio_available:
             GPIO.setmode(GPIO.BCM)
             GPIO.setwarnings(False)
-            GPIO.setup(self.PIN_BUTTON_HOPE, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-            GPIO.setup(self.PIN_BUTTON_FEAR, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            GPIO.setup(self.PIN_BUTTON_HOPE, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+            GPIO.setup(self.PIN_BUTTON_FEAR, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
             GPIO.setup(self.PIN_LED_HOPE, GPIO.OUT)
             GPIO.setup(self.PIN_LED_FEAR, GPIO.OUT)
         else:
             rospy.logwarn("Node hasn't found the GPIO, buttons will not work")
+        rospy.loginfo("Buttons node is started!")
 
     def _fear_light_update(self, msg):
         self.fear_led_status = msg.type.data
@@ -52,7 +54,7 @@ class Buttons(object):
 
     def pressed(self, button_id):
         if gpio_available:
-            return not GPIO.input(button_id)
+            return GPIO.input(button_id)
         else:
             return False
 
@@ -61,7 +63,6 @@ class Buttons(object):
             now = rospy.Time.now()
             # Hope LED update
             if self.hope_led_status == LightStatus.ON:
-                rospy.loginfo("HOPE ON")
                 GPIO.output(self.PIN_LED_HOPE, True)
                 self.last_hope_led_update_time = rospy.Time.now()
             elif self.hope_led_status == LightStatus.OFF:
@@ -98,16 +99,16 @@ class Buttons(object):
 
     def run(self):
         rate = rospy.Rate(10)
-        now = rospy.Time.now()
         while not rospy.is_shutdown():
             self.update_leds()
             # TODO: very long press should not increment the counter
-            if self.pressed(self.PIN_BUTTON_HOPE) and now > self.last_pressed_time + self.MIN_PRESS_INTERVAL:
+            now = rospy.Time.now()
+            if self.pressed(self.PIN_BUTTON_HOPE) and now > self.last_pressed_time + rospy.Duration(self.MIN_PRESS_INTERVAL):
                 self.last_pressed_time = now
-                self.publisher.publish(ButtonPressed(type=ButtonPressed.HOPE))
-            elif self.pressed(self.PIN_BUTTON_FEAR) and now > self.last_pressed_time + self.MIN_PRESS_INTERVAL:
+                self.publisher.publish(ButtonPressed(type=Int32(ButtonPressed.HOPE)))
+            elif self.pressed(self.PIN_BUTTON_FEAR) and now > self.last_pressed_time + rospy.Duration(self.MIN_PRESS_INTERVAL):
                 self.last_pressed_time = now
-                self.publisher.publish(ButtonPressed(type=ButtonPressed.FEAR))
+                self.publisher.publish(ButtonPressed(type=Int32(ButtonPressed.FEAR)))
             rate.sleep()
 
 if __name__ == '__main__':
