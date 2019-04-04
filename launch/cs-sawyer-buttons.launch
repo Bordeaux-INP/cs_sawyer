@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<launch>  
+  <node pkg="cs_sawyer" type="buttons.py" name="cs_sawyer_buttons" output="screen" respawn="true"/>
+</launch>
+
