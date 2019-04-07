@@ -23,7 +23,10 @@ class InteractionController(object):
         self.limb = None
         self.rs = None
         self.waiting = {"fear": 0, "hope": 0}  # Votes waiting for execution
+        self.votes = {"fear": 0, "hope": 0}    # Votes already written
        
+        with open(join(self.rospack.get_path("cs_sawyer"), "config/sticks_target_ik.json")) as f:
+            self.sticks_target_ik = json.load(f)
         with open(join(self.rospack.get_path("cs_sawyer"), "config/poses.json")) as f:
             self.poses = json.load(f)
 
@@ -33,6 +36,7 @@ class InteractionController(object):
         rospy.loginfo("Sawyer Interaction Controller is ready!")
 
     def _cb_button_pressed(self, msg):
+        rospy.loginfo("Queuing new vote: " + "hope" if msg.type.data == ButtonPressed.HOPE else "fear")
         if msg.type.data == ButtonPressed.FEAR:
             self.waiting["fear"] += 1
         elif msg.type.data == ButtonPressed.HOPE:
@@ -50,10 +54,14 @@ class InteractionController(object):
         self.limb.move_to_neutral()
         self.rs.disable()
 
+    def move_to_pause_position(self):
+        self.limb.move_to_joint_positions(self.poses["pause"])
+
     def run(self):
         self.start_robot()
         rospy.sleep(0.5)
-        self.update_lights(self.ANIMATION_OFF)
+        self.update_lights(self.ANIMATION_IDLE)
+        self.move_to_pause_position()
         rate = rospy.Rate(5)
         while not rospy.is_shutdown():
             if self.waiting["hope"] > 0:
@@ -63,6 +71,7 @@ class InteractionController(object):
                 self.waiting["fear"] -= 1
                 self.move("fear")
             rate.sleep()
+        self.update_lights(self.ANIMATION_OFF)
 
     def update_lights(self, animations):
         hope = animations[0]
@@ -72,11 +81,19 @@ class InteractionController(object):
 
     def move(self, type):
         if type == "hope":
+            vote_id = rospy.get_param("cs_sawyer/votes/hope/executed", 0)
+            rospy.logwarn("Executing hope vote num {}".format(vote_id))
             self.update_lights(self.ANIMATION_MOTION_RUNNING_HOPE)
-            self.limb.move_to_neutral()
+            self.limb.move_to_joint_positions(self.sticks_target_ik["hope"][vote_id]["start"])
+            self.limb.move_to_joint_positions(self.sticks_target_ik["hope"][vote_id]["end"])
+            self.move_to_pause_position()
+            rospy.set_param("cs_sawyer/votes/hope/executed", vote_id + 1)
         elif type == "fear":
+            return
             self.update_lights(self.ANIMATION_MOTION_RUNNING_FEAR)
             self.limb.move_to_neutral()
+        self.update_lights(self.ANIMATION_IDLE)
+
 
 
 
