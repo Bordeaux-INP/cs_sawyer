@@ -34,6 +34,14 @@ def list_to_pose(poselist):
     p.orientation.w = poselist[1][3]
     return p
 
+def list_to_pose_stamped(poselist, stamp=None, frame_id="base"):
+    ps = geometry_msgs.msg.PoseStamped()
+    if stamp is not None:
+        ps.header.stamp = stamp
+    ps.header.frame_id = frame_id
+    ps.pose = list_to_pose(poselist)
+    return ps
+
 def quat_rotate(rotation, vector):
     """
     Rotate a vector according to a quaternion. Equivalent to the C++ method tf::quatRotate
