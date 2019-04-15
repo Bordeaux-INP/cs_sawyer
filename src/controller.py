@@ -24,6 +24,7 @@ class InteractionController(object):
         self.limb = None
         self.rs = None
         self.error = False
+        self.reset_error = False
         self.waiting = {"fear": 0, "hope": 0}  # Votes waiting for execution
        
         with open(join(self.rospack.get_path("cs_sawyer"), "config/motions.json")) as f:
@@ -37,14 +38,14 @@ class InteractionController(object):
         rospy.loginfo("Sawyer Interaction Controller is ready!")
 
     def _cb_button_pressed(self, msg):
-        if msg.type.data == ButtonPressed.FEAR:
+        if msg.type.data == ButtonPressed.FEAR and not self.error:
             rospy.loginfo("Queuing new vote: fear")
             self.waiting["fear"] += 1
-        elif msg.type.data == ButtonPressed.HOPE:
+        elif msg.type.data == ButtonPressed.HOPE and not self.error:
             rospy.loginfo("Queuing new vote: hope")
             self.waiting["hope"] += 1
         elif msg.type.data == ButtonPressed.RESET:
-            self.reset_errors()
+            self.reset_error = True
 
     def start_robot(self):
         self.rs = intera_interface.RobotEnable(intera_interface.CHECK_VERSION)
@@ -66,19 +67,28 @@ class InteractionController(object):
         self.move_to_joint_positions(self.poses["pause"])
 
     def check_for_errors(self):
-        if not self.error and (rospy.get_param("cs_sawyer/votes/hope/executed", 0) == len(self.motions["hope"]) or \
-           rospy.get_param("cs_sawyer/votes/fear/executed", 0) == len(self.motions["fear"])):
-           rospy.logerr("Board full, please reset...")
-           self.error = True
-           self.update_lights(self.ANIMATION_ERROR)
+        if (rospy.get_param("cs_sawyer/votes/hope/executed", 0) >= len(self.motions["hope"]) or \
+            rospy.get_param("cs_sawyer/votes/fear/executed", 0) >= len(self.motions["fear"])):
+            if not self.error:
+                rospy.logerr("Board full, please reset...")
+            self.error = True
+            self.update_lights(self.ANIMATION_ERROR)
+        else:
+            self.error = False
 
-    def reset_errors(self):
-        rospy.logerr("Resetting errors")
-        rospy.set_param("cs_sawyer/votes/hope/executed", 0)
-        rospy.set_param("cs_sawyer/votes/fear/executed", 0)
-        self.waiting['fear'] = 0
-        self.waiting['hope'] = 0
-        self.error = False
+        if self.reset_error:
+            rospy.logerr("Resetting errors")
+            self.update_lights(self.ANIMATION_OFF)
+            rospy.set_param("cs_sawyer/votes/hope/executed", 0)
+            rospy.set_param("cs_sawyer/votes/fear/executed", 0)
+            rospy.sleep(3)
+            # We have just recovered from error, wait a bit for the user...
+            self.waiting['fear'] = 0
+            self.waiting['hope'] = 0
+            self.reset_error = False            
+            rospy.logwarn("Reset is over, resuming operation...")
+        
+
 
     def run(self):
         self.start_robot()
