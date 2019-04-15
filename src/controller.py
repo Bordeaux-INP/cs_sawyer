@@ -8,25 +8,27 @@ import intera_interface
 from os.path import join
 from std_msgs.msg import Int32
 from cs_sawyer.msg import ButtonPressed, LightStatus
+from copy import deepcopy
 
 class InteractionController(object):
     # Couples of [hope light status, fear light status]
-    ANIMATION_MOTION_RUNNING_HOPE = [LightStatus.SLOW_BLINK, LightStatus.OFF]
-    ANIMATION_MOTION_RUNNING_FEAR = [LightStatus.OFF, LightStatus.SLOW_BLINK]
+    ANIMATION_MOTION_RUNNING_HOPE = [LightStatus.FAST_BLINK, LightStatus.OFF]
+    ANIMATION_MOTION_RUNNING_FEAR = [LightStatus.OFF, LightStatus.FAST_BLINK]
     ANIMATION_IDLE = [LightStatus.ON, LightStatus.ON]
     ANIMATION_ERROR = [LightStatus.FAST_BLINK, LightStatus.FAST_BLINK]
     ANIMATION_RESETTING = [LightStatus.SLOW_BLINK, LightStatus.SLOW_BLINK]
     ANIMATION_OFF = [LightStatus.OFF, LightStatus.OFF]
 
-    def __init__(self):
+    def __init__(self, speed=0.15):
         self.rospack = rospkg.RosPack()
+        self.speed = speed
         self.limb = None
         self.rs = None
         self.error = False
         self.waiting = {"fear": 0, "hope": 0}  # Votes waiting for execution
        
-        with open(join(self.rospack.get_path("cs_sawyer"), "config/sticks_target_ik.json")) as f:
-            self.sticks_target_ik = json.load(f)
+        with open(join(self.rospack.get_path("cs_sawyer"), "config/motions.json")) as f:
+            self.motions = json.load(f)
         with open(join(self.rospack.get_path("cs_sawyer"), "config/poses.json")) as f:
             self.poses = json.load(f)
 
@@ -49,18 +51,24 @@ class InteractionController(object):
         self.rs = intera_interface.RobotEnable(intera_interface.CHECK_VERSION)
         self.rs.enable()
         self.limb = intera_interface.Limb('right')
-        self.limb.move_to_neutral()
+        self.limb.move_to_neutral(speed=self.speed)
 
     def tuck_robot(self):
-        self.limb.move_to_neutral()
+        self.limb.move_to_neutral(speed=self.speed)
         self.rs.disable()
 
+    def move_to_joint_positions(self, positions, speed=None, threshold=0.008726646):
+        speed = speed if speed is not None else self.speed
+        self.limb.set_joint_position_speed(speed)
+        self.limb.move_to_joint_positions(positions, threshold=threshold)
+
     def move_to_pause_position(self):
-        self.limb.move_to_joint_positions(self.poses["pause"])
+        self.limb.set_joint_position_speed(self.speed)
+        self.move_to_joint_positions(self.poses["pause"])
 
     def check_for_errors(self):
-        if not self.error and (rospy.get_param("cs_sawyer/votes/hope/executed", 0) == len(self.sticks_target_ik["hope"]) or \
-           False) : #rospy.get_param("cs_sawyer/votes/fear/executed", 0) == len(self.sticks_target_ik["fear"])):
+        if not self.error and (rospy.get_param("cs_sawyer/votes/hope/executed", 0) == len(self.motions["hope"]) or \
+           rospy.get_param("cs_sawyer/votes/fear/executed", 0) == len(self.motions["fear"])):
            rospy.logerr("Board full, please reset...")
            self.error = True
            self.update_lights(self.ANIMATION_ERROR)
@@ -95,12 +103,31 @@ class InteractionController(object):
         self.light_pub_hope.publish(LightStatus(type=Int32(hope)))
         self.light_pub_fear.publish(LightStatus(type=Int32(fear)))
 
+    def tuck_finger(self, positions):
+        tucked_positions = deepcopy(positions)
+        tucked_positions["right_j5"] += -0.5
+        #tucked_positions.update({"right_j5": -2.65})
+        return tucked_positions
+
     def move(self, type):
         vote_id = rospy.get_param("cs_sawyer/votes/{}/executed".format(type), 0)
         rospy.logwarn("Executing {} vote num {}".format(type, vote_id))
         self.update_lights(self.ANIMATION_MOTION_RUNNING_HOPE if type == "hope" else self.ANIMATION_MOTION_RUNNING_FEAR)
-        self.limb.move_to_joint_positions(self.sticks_target_ik[type][vote_id]["start"])
-        self.limb.move_to_joint_positions(self.sticks_target_ik[type][vote_id]["end"])
+        # TODO: There are better ways to execute cartesian motions
+
+        pose_init = dict(zip(self.motions["joints"], self.motions[type][vote_id][0]))
+        tucked_pose_init = self.tuck_finger(pose_init)
+        print(tucked_pose_init)
+        self.move_to_joint_positions(tucked_pose_init)
+        self.move_to_joint_positions(pose_init, speed=0.1)
+
+        for point in self.motions[type][vote_id][1:]:
+            self.move_to_joint_positions(dict(zip(self.motions["joints"], point)))    
+            
+        pose_end = dict(zip(self.motions["joints"], self.motions[type][vote_id][-1]))
+        tucked_pose_end = self.tuck_finger(pose_end)
+        print(tucked_pose_end)
+        self.move_to_joint_positions(tucked_pose_end, speed=0.1)
         self.move_to_pause_position()
         rospy.set_param("cs_sawyer/votes/{}/executed".format(type), vote_id + 1)
         self.update_lights(self.ANIMATION_IDLE)
