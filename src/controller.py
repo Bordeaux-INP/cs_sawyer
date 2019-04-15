@@ -51,7 +51,7 @@ class InteractionController(object):
         self.rs = intera_interface.RobotEnable(intera_interface.CHECK_VERSION)
         self.rs.enable()
         self.limb = intera_interface.Limb('right')
-        self.limb.move_to_neutral(speed=self.speed)
+        #self.limb.move_to_neutral(speed=self.speed)
 
     def tuck_robot(self):
         self.limb.move_to_neutral(speed=self.speed)
@@ -119,15 +119,15 @@ class InteractionController(object):
         tucked_pose_init = self.tuck_finger(pose_init)
         print(tucked_pose_init)
         self.move_to_joint_positions(tucked_pose_init)
-        self.move_to_joint_positions(pose_init, speed=0.1)
+        self.move_to_joint_positions(pose_init, speed=0.15)
 
         for point in self.motions[type][vote_id][1:]:
-            self.move_to_joint_positions(dict(zip(self.motions["joints"], point)))    
+            self.move_to_joint_positions(dict(zip(self.motions["joints"], point)), threshold=0.01)    
             
         pose_end = dict(zip(self.motions["joints"], self.motions[type][vote_id][-1]))
         tucked_pose_end = self.tuck_finger(pose_end)
         print(tucked_pose_end)
-        self.move_to_joint_positions(tucked_pose_end, speed=0.1)
+        self.move_to_joint_positions(tucked_pose_end, speed=0.4)
         self.move_to_pause_position()
         rospy.set_param("cs_sawyer/votes/{}/executed".format(type), vote_id + 1)
         self.update_lights(self.ANIMATION_IDLE)
