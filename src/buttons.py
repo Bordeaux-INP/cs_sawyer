@@ -36,6 +36,9 @@ class Buttons(object):
         self.publisher = rospy.Publisher("cs_sawyer/button", ButtonPressed, queue_size=1)
         self.fear_led_status = LightStatus.OFF
         self.hope_led_status = LightStatus.OFF
+        self.fear_led_status_previous = LightStatus.OFF
+        self.hope_led_status_previous = LightStatus.OFF
+        self.led_synced = False
         self._fear_led_on = False
         self._hope_led_on = False
 
@@ -54,10 +57,12 @@ class Buttons(object):
         rospy.loginfo("Buttons node is started!")
 
     def _fear_light_update(self, msg):
+        self.fear_led_status_previous = self.fear_led_status
         self.fear_led_status = msg.type.data
         self.last_received_led_time = rospy.Time.now()
 
     def _hope_light_update(self, msg):
+        self.hope_led_status_previous = self.hope_led_status
         self.hope_led_status = msg.type.data
         self.last_received_led_time = rospy.Time.now()
 
@@ -71,11 +76,24 @@ class Buttons(object):
         if gpio_available:
             now = rospy.Time.now()
 
-
             # Measure timeout
             if now > self.last_received_led_time + rospy.Duration(self.TIMEOUT_DURATION):
+                self.hope_led_status_previous = self.hope_led_status
+                self.fear_led_status_previous = self.fear_led_status
                 self.hope_led_status = LightStatus.FAST_BLINK
                 self.fear_led_status = LightStatus.FAST_BLINK
+
+            # Hack to sync LEDs when they're blinking the same way
+            if self.hope_led_status_previous != self.hope_led_status or self.fear_led_status_previous != self.fear_led_status:
+                if self.hope_led_status == self.fear_led_status and self.hope_led_status in [LightStatus.SLOW_BLINK, LightStatus.FAST_BLINK]:
+                    if not self.led_synced:
+                        self.last_fear_led_update_time = now
+                        self.last_hope_led_update_time = now
+                        self._hope_led_on = True
+                        self._fear_led_on = True
+                        self.led_synced = True
+                else:
+                    self.led_synced = False
 
             # Hope LED update
             if self.hope_led_status == LightStatus.ON:
