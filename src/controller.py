@@ -7,6 +7,7 @@ import json
 import intera_interface
 from os.path import join
 from std_msgs.msg import Int32
+from sawyer.sticks import Sticks
 from cs_sawyer.msg import ButtonPressed, LightStatus
 from copy import deepcopy
 
@@ -15,20 +16,27 @@ class InteractionController(object):
     ANIMATION_MOTION_RUNNING_HOPE = [LightStatus.FAST_BLINK, LightStatus.OFF]
     ANIMATION_MOTION_RUNNING_FEAR = [LightStatus.OFF, LightStatus.FAST_BLINK]
     ANIMATION_IDLE = [LightStatus.ON, LightStatus.ON]
+    ANIMATION_CALIBRATING = [LightStatus.FAST_BLINK, LightStatus.FAST_BLINK]
     ANIMATION_ERROR = [LightStatus.SLOW_BLINK, LightStatus.SLOW_BLINK]
     ANIMATION_OFF = [LightStatus.OFF, LightStatus.OFF]
+    Z_PEN_OFFSET = 0.19
 
     def __init__(self, speed=0.15):
         self.rospack = rospkg.RosPack()
         self.speed = speed
         self.limb = None
         self.rs = None
+        self.calibrate = False
+        self.calibrate_requested = False
+        self.calibrate_state_machine_step = 0
         self.error = False
         self.reset_error = False
         self.waiting = {"fear": 0, "hope": 0}  # Votes waiting for execution
-       
-        with open(join(self.rospack.get_path("cs_sawyer"), "config/motions.json")) as f:
-            self.motions = json.load(f)
+        self._sticks = Sticks()
+        self.motions = self._sticks.get_cartesian_motions()
+        self.head = intera_interface.head.Head()
+        self.head.set_pan(-1.57)
+
         with open(join(self.rospack.get_path("cs_sawyer"), "config/poses.json")) as f:
             self.poses = json.load(f)
 
@@ -46,11 +54,15 @@ class InteractionController(object):
             self.waiting["hope"] += 1
         elif msg.type.data == ButtonPressed.RESET:
             self.reset_error = True
+        elif msg.type.data == ButtonPressed.CALIBRATE:
+            self.calibrate = True
+            self.calibrate_requested = True
 
     def start_robot(self):
         self.rs = intera_interface.RobotEnable(intera_interface.CHECK_VERSION)
         self.rs.enable()
         self.limb = intera_interface.Limb('right')
+        self._sticks.set_limb(self.limb)
         #self.limb.move_to_neutral(speed=self.speed)
 
     def tuck_robot(self):
@@ -85,9 +97,35 @@ class InteractionController(object):
             # We have just recovered from error, wait a bit for the user...
             self.waiting['fear'] = 0
             self.waiting['hope'] = 0
-            self.reset_error = False            
+            self.reset_error = False       
             rospy.logwarn("Reset is over, resuming operation...")
-        
+    
+    def check_calibration(self):
+        if self.calibrate and self.calibrate_requested:
+            if self.calibrate_state_machine_step == 0:
+                # Waiting for a second press
+                self.update_lights(self.ANIMATION_CALIBRATING)
+                self.calibrate_state_machine_step = 1
+                rospy.logwarn("Prepare init pose and press calibrate again")
+                self.calibrate_requested = False
+            elif self.calibrate_state_machine_step == 1:
+                self.update_lights(self.ANIMATION_OFF)
+                success = self._sticks.calibrate(self.Z_PEN_OFFSET)
+                if success:
+                    self.calibrate_state_machine_step = 2
+                else:
+                    self.calibrate_state_machine_step = 0
+            elif self.calibrate_state_machine_step == 2:
+                self.update_lights(self.ANIMATION_IDLE)
+                self._sticks.overwrite_cartesian_motions()
+                self.motions = self._sticks.get_cartesian_motions()
+                rospy.logwarn("Calibration is over, resuming operation...")
+                self.move_to_pause_position()
+                self.waiting['fear'] = 0
+                self.waiting['hope'] = 0
+                self.calibrate = False
+                self.calibrate_requested = False
+                self.calibrate_state_machine_step = 0
 
 
     def run(self):
@@ -96,15 +134,17 @@ class InteractionController(object):
         self.move_to_pause_position()
         rate = rospy.Rate(5)
         while not rospy.is_shutdown():
-            self.check_for_errors()
-            if not self.error:
-                self.update_lights(self.ANIMATION_IDLE)
-                if self.waiting["hope"] > 0:
-                    self.waiting["hope"] -= 1
-                    self.move("hope")
-                elif self.waiting["fear"] > 0:
-                    self.waiting["fear"] -= 1
-                    self.move("fear")
+            self.check_calibration()
+            if not self.calibrate:
+                self.check_for_errors()
+                if not self.error:
+                    self.update_lights(self.ANIMATION_IDLE)
+                    if self.waiting["hope"] > 0:
+                        self.waiting["hope"] -= 1
+                        self.move("hope")
+                    elif self.waiting["fear"] > 0:
+                        self.waiting["fear"] -= 1
+                        self.move("fear")
             rate.sleep()
         self.update_lights(self.ANIMATION_OFF)
 
@@ -140,9 +180,6 @@ class InteractionController(object):
         self.move_to_pause_position()
         rospy.set_param("cs_sawyer/votes/{}/executed".format(type), vote_id + 1)
         self.update_lights(self.ANIMATION_IDLE)
-
-
-
 
 
 if __name__=='__main__':
