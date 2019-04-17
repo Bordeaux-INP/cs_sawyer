@@ -11,6 +11,12 @@ from sawyer.sticks import Sticks
 from cs_sawyer.msg import ButtonPressed, LightStatus
 from copy import deepcopy
 
+from intera_motion_interface import (
+    MotionTrajectory,
+    MotionWaypoint,
+    MotionWaypointOptions
+)
+
 class InteractionController(object):
     # Couples of [hope light status, fear light status]
     ANIMATION_MOTION_RUNNING_HOPE = [LightStatus.FAST_BLINK, LightStatus.OFF]
@@ -21,9 +27,10 @@ class InteractionController(object):
     ANIMATION_OFF = [LightStatus.OFF, LightStatus.OFF]
     Z_PEN_OFFSET = 0.19
 
-    def __init__(self, speed=0.15):
+    def __init__(self, speed=0.15, acceleration=0.001):
         self.rospack = rospkg.RosPack()
         self.speed = speed
+        self.acceleration = acceleration
         self.limb = None
         self.rs = None
         self.calibrate = False
@@ -69,10 +76,36 @@ class InteractionController(object):
         self.limb.move_to_neutral(speed=self.speed)
         self.rs.disable()
 
-    def move_to_joint_positions(self, positions, speed=None, threshold=0.008726646):
+    def move_to_joint_positions(self, positions, speed=None, acceleration=None):
         speed = speed if speed is not None else self.speed
-        self.limb.set_joint_position_speed(speed)
-        self.limb.move_to_joint_positions(positions, threshold=threshold)
+        acceleration = acceleration if acceleration is not None else self.acceleration
+        traj = MotionTrajectory(limb = self.limb)
+        wpt_opts = MotionWaypointOptions(max_joint_speed_ratio=speed,
+                                         max_joint_accel=acceleration)
+        waypoint = MotionWaypoint(options = wpt_opts.to_msg(), limb = self.limb)
+        if isinstance(positions, dict):
+            joint_angles = positions.values()
+            waypoint.set_joint_angles(joint_angles = joint_angles)
+            traj.set_joint_names(positions.keys())
+            traj.append_waypoint(waypoint.to_msg())
+        elif isinstance(positions, (list, tuple)):
+            if len(positions) > 0:
+                joint_angles = positions[0].values()
+                joint_names = positions[0].keys()
+                for point in positions:
+                    waypoint.set_joint_angles(joint_angles = point.values())
+                    traj.append_waypoint(waypoint.to_msg())
+                traj.set_joint_names(joint_names)
+        else:
+            rospy.logerr("Incorrect inputs to move_to_joint_positions")
+            return
+
+        result = traj.send_trajectory(timeout=30)
+        if result is None:
+            rospy.logerr("Trajectory failed to send")
+        elif not result.result:
+            rospy.logerr('Motion controller failed to complete the trajectory with error %s',
+                         result.errorId)
 
     def move_to_pause_position(self):
         self.limb.set_joint_position_speed(self.speed)
@@ -171,8 +204,7 @@ class InteractionController(object):
         self.move_to_joint_positions(tucked_pose_init)
         self.move_to_joint_positions(pose_init, speed=0.15)
 
-        for point in self.motions[type][vote_id][1:]:
-            self.move_to_joint_positions(dict(zip(self.motions["joints"], point)), threshold=0.01)    
+        self.move_to_joint_positions([dict(zip(self.motions["joints"], point)) for point in self.motions[type][vote_id][1:]])    
             
         pose_end = dict(zip(self.motions["joints"], self.motions[type][vote_id][-1]))
         tucked_pose_end = self.tuck_finger(pose_end)
