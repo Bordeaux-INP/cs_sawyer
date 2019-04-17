@@ -17,6 +17,11 @@ from intera_motion_interface import (
     MotionWaypointOptions
 )
 
+from intera_motion_msgs.msg import (
+    Trajectory,
+    TrajectoryOptions,
+)
+
 class InteractionController(object):
     # Couples of [hope light status, fear light status]
     ANIMATION_MOTION_RUNNING_HOPE = [LightStatus.FAST_BLINK, LightStatus.OFF]
@@ -92,10 +97,14 @@ class InteractionController(object):
             if len(positions) > 0:
                 joint_angles = positions[0].values()
                 joint_names = positions[0].keys()
+                # FIXME keep only first and last points: why are waypoints so slow even when speed/accel are high??
+                positions = [positions[0], positions[-1]]
                 for point in positions:
                     waypoint.set_joint_angles(joint_angles = point.values())
                     traj.append_waypoint(waypoint.to_msg())
                 traj.set_joint_names(joint_names)
+                #t_opt = TrajectoryOptions(end_time=rospy.Time(1))
+                #traj.set_trajectory_options(t_opt)
         else:
             rospy.logerr("Incorrect inputs to move_to_joint_positions")
             return
