@@ -70,44 +70,56 @@ class Sticks(object):
         # Starting from lower left (drawing direction)
         self.sticks = {"hope": [], "fear": []}
         y_interval = 0.01      # Interval of sticks in y direction
-        z_interval = 0.02      # Interval of sticks in z direction
+        z_interval = 0.01      # Interval of sticks in z direction
         group_interval = 0.01  # Interval between each group in y direction
-        num_groups = 8         # Number of stick groups per line
+        num_groups = 10        # Number of stick groups per line
         num_sticks = 4         # Number of sticks per group
-        height_stick = 0.03    # Length in z direction
-        num_height = 8         # Number of sticks in z direction (in height)
-        num_points_cart = 20   # Number of cartesian points for the actual drawing motion
+        height_stick = 0.02    # Length in z direction
+        num_height = 7         # Number of sticks in z direction (in height)
+        x_approach_dist = 0.05 # Distance from the board for the approach
 
         emotion = "fear"
         z_stick = self.stick_T_world[0][2]
         col = 0
-        for h in range(num_height):
-            y_stick = self.stick_T_world[0][1]
-            for g in range(num_groups):
-                for i in range(num_sticks):
-                    # Add the end stick
-                    rotation = self.stick_T_world[1]
-                    position = [self.stick_T_world[0][0], y_stick, z_stick + height_stick]
-                    end_stick = [position, rotation]
-                    #self.tfb.sendTransform(end_stick[0], end_stick[1], rospy.Time.now(), str(col), "world")
-                    motion = [end_stick]
+        for e in ["fear", "hope"]:
+            for h in range(num_height):
+                y_stick = self.stick_T_world[0][1]
+                for g in range(num_groups):
+                    for i in range(num_sticks):
+                        # This is the end side of the stick
+                        rotation = self.stick_T_world[1]
+                        position = [self.stick_T_world[0][0], y_stick, z_stick + height_stick]
+                        end_stick = [position, rotation]
 
-                    # Add the cartesian motion
-                    for p in range(num_points_cart):
-                        motion_point = deepcopy(end_stick)
-                        motion_point[0][2] = z_stick + height_stick - height_stick * (p+1) / num_points_cart
-                        motion.append(motion_point)
-                        #if i == 0 and g == 0:
-                        #    tfb.sendTransform(motion_point, [0, 0, 0, 1], rospy.Time.now(), str(col)+'-'+str(p), "world")
-                    
-                    self.sticks[emotion].append(motion)
-                    y_stick += y_interval
-                    col += 1
-                y_stick += group_interval
-            z_stick += z_interval + height_stick
-            if len(self.sticks["fear"]) == num_groups*num_height*num_sticks/2:
-                emotion = "hope"
-                z_stick += 0.02
+                        # Stick approach
+                        approach = deepcopy(end_stick)
+                        approach[0][0] += x_approach_dist
+                        approach[0][2] = z_stick + height_stick
+
+                        # Stick init
+                        init = deepcopy(end_stick)
+                        init[0][2] = z_stick + height_stick
+                        
+                        # Stick drawing
+                        drawing = deepcopy(end_stick)
+                        drawing[0][2] = z_stick + height_stick - height_stick
+
+                        # Stick retreat
+                        retreat = deepcopy(end_stick)
+                        retreat[0][0] += x_approach_dist
+                        retreat[0][2] = z_stick + height_stick - height_stick
+
+                        motion = [approach, init, drawing, retreat]
+                        self.tfb.sendTransform(init[0], init[1], rospy.Time.now(), e + str(len(self.sticks[e])), "world")
+
+                        self.sticks[emotion].append(motion)
+                        y_stick += y_interval
+                        col += 1
+                    y_stick += group_interval
+                z_stick += z_interval + height_stick
+                if len(self.sticks["fear"]) == num_groups*num_height*num_sticks:
+                    emotion = "hope"
+                    z_stick += 0.02
         rospy.loginfo(str(len(self.sticks["hope"])) + " + " + str(len(self.sticks["fear"])) + " sticks generated")
 
     # Calibration part 4
@@ -121,7 +133,7 @@ class Sticks(object):
                 for point_id, point in enumerate(stick):
                     hand_T_world = transformations.multiply_transform(point, self.hand_T_stick)
                     self.tfb.sendTransform(hand_T_world[0], hand_T_world[1], rospy.Time.now(), "eik", "world")
-                    #rospy.sleep(0.01)
+                    #rospy.sleep(1)
                     result = self.limb.ik_request(transformations.list_to_pose(hand_T_world), joint_seed=seed)
                     if result == False:
                         rospy.logerr("IK can't reach point for stick {} ({})".format(stick_id, emotion))
@@ -129,6 +141,7 @@ class Sticks(object):
                     else:
                         motion.append(result.values())
                         seed = result
+                #rospy.sleep(1)
                 self.stick_fk[emotion].append(motion)
                 self.stick_fk["joints"] = result.keys()
         rospy.loginfo("Cartesian motions complete")
@@ -136,8 +149,8 @@ class Sticks(object):
 
     # Calibration part 5
     def overwrite_cartesian_motions(self):
-        with open(join(self.rospack.get_path("cs_sawyer"), "config/motions.json"), "w") as f:
-            json.dump(self.stick_fk, f)
+        pass #with open(join(self.rospack.get_path("cs_sawyer"), "config/motions.json"), "w") as f:
+        #    json.dump(self.stick_fk, f)
 
     def get_cartesian_motions(self):
         with open(join(self.rospack.get_path("cs_sawyer"), "config/motions.json")) as f:

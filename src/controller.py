@@ -97,8 +97,6 @@ class InteractionController(object):
             if len(positions) > 0:
                 joint_angles = positions[0].values()
                 joint_names = positions[0].keys()
-                # FIXME keep only first and last points: why are waypoints so slow even when speed/accel are high??
-                positions = [positions[0], positions[-1]]
                 for point in positions:
                     waypoint.set_joint_angles(joint_angles = point.values())
                     traj.append_waypoint(waypoint.to_msg())
@@ -196,28 +194,14 @@ class InteractionController(object):
         self.light_pub_hope.publish(LightStatus(type=Int32(hope)))
         self.light_pub_fear.publish(LightStatus(type=Int32(fear)))
 
-    def tuck_finger(self, positions):
-        tucked_positions = deepcopy(positions)
-        tucked_positions["right_j5"] += -0.5
-        #tucked_positions.update({"right_j5": -2.65})
-        return tucked_positions
-
     def move(self, type):
         vote_id = rospy.get_param("cs_sawyer/votes/{}/executed".format(type), 0)
         rospy.logwarn("Executing {} vote num {}".format(type, vote_id))
         self.update_lights(self.ANIMATION_MOTION_RUNNING_HOPE if type == "hope" else self.ANIMATION_MOTION_RUNNING_FEAR)
         # TODO: There are better ways to execute cartesian motions
 
-        pose_init = dict(zip(self.motions["joints"], self.motions[type][vote_id][0]))
-        tucked_pose_init = self.tuck_finger(pose_init)
-        self.move_to_joint_positions(tucked_pose_init)
-        self.move_to_joint_positions(pose_init, speed=0.15)
-
-        self.move_to_joint_positions([dict(zip(self.motions["joints"], point)) for point in self.motions[type][vote_id][1:]])    
+        self.move_to_joint_positions([dict(zip(self.motions["joints"], point)) for point in self.motions[type][vote_id]])    
             
-        pose_end = dict(zip(self.motions["joints"], self.motions[type][vote_id][-1]))
-        tucked_pose_end = self.tuck_finger(pose_end)
-        self.move_to_joint_positions(tucked_pose_end, speed=0.4)
         self.move_to_pause_position()
         rospy.set_param("cs_sawyer/votes/{}/executed".format(type), vote_id + 1)
         self.update_lights(self.ANIMATION_IDLE)
