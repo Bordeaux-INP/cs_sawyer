@@ -35,6 +35,7 @@ class InteractionController(object):
 
     def __init__(self, speed=0.15, acceleration=0.001):
         self.rospack = rospkg.RosPack()
+        self.last_activity = rospy.Time(0)
         self.speed = speed
         self.acceleration = acceleration
         self.limb = None
@@ -93,7 +94,6 @@ class InteractionController(object):
         if isinstance(trajectory, dict) and "approach" in trajectory:
             for mtype in ["approach", "init", "drawing", "retreat"]:
                 points = trajectory[mtype]
-                print(points)
                 if points["type"] == "joint":
                     self._seed = points["joints"]
                     self.move_to_joint_positions(dict(zip(joint_names, points["joints"])))
@@ -110,8 +110,7 @@ class InteractionController(object):
                     traj.append_waypoint(waypoint)
                     traj.set_joint_names(joint_names)
                     result = traj.send_trajectory(timeout=10)
-
-
+                    self.last_activity = rospy.Time.now()
                     if result is None:
                         rospy.logerr("Trajectory failed to send")
                     elif not result.result:
@@ -139,6 +138,7 @@ class InteractionController(object):
             return
 
         result = traj.send_trajectory(timeout=30)
+        self.last_activity = rospy.Time.now()
         if result is None:
             rospy.logerr("Trajectory failed to send")
         elif not result.result:
@@ -216,6 +216,9 @@ class InteractionController(object):
                     elif self.waiting["fear"] > 0:
                         self.waiting["fear"] -= 1
                         self.move("fear")
+                    elif rospy.Time.now() > self.last_activity + rospy.Duration(5):
+                        self.move_to_pause_position()
+
             rate.sleep()
         self.update_lights(self.ANIMATION_OFF)
 
@@ -231,7 +234,6 @@ class InteractionController(object):
         self.update_lights(self.ANIMATION_MOTION_RUNNING_HOPE if type == "hope" else self.ANIMATION_MOTION_RUNNING_FEAR)
         # TODO: There are better ways to execute cartesian motions
         self.execute_trajectory(self.motions[type][vote_id], self.motions["joints"])
-        self.move_to_pause_position()
         rospy.set_param("cs_sawyer/votes/{}/executed".format(type), vote_id + 1)
         self.update_lights(self.ANIMATION_IDLE)
 
