@@ -99,7 +99,7 @@ class InteractionController(object):
                     self.move_to_joint_positions(dict(zip(joint_names, points["joints"])))
                 elif points["type"] == "cart":
 
-                    wpt_opts = MotionWaypointOptions(max_joint_speed_ratio=speed/10,
+                    wpt_opts = MotionWaypointOptions(max_joint_speed_ratio=0.05,  # Fixme: hack low speed
                                                      max_joint_accel=acceleration)
 
                     traj  = MotionTrajectory(limb = self.limb)

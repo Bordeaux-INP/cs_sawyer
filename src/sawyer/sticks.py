@@ -61,6 +61,58 @@ class Sticks(object):
         self.stick_T_world = transformations.pose_to_list(self.tfl.transformPose("world", ps))
         self.hand_T_stick = transformations.inverse_transform(self.stick_T_hand)
 
+    def get_drawing_cartesian_motion_vertical(self, end_stick, x_approach_dist, z_stick, height_stick, emotion):
+        # Stick approach
+        approach = deepcopy(end_stick)
+        approach[0][0] += x_approach_dist
+        approach[0][2] = z_stick + height_stick
+
+        # Stick init
+        init = deepcopy(end_stick)
+        init[0][2] = z_stick + height_stick
+        
+        # Stick drawing
+        drawing = deepcopy(end_stick)
+        drawing[0][2] = z_stick
+
+        # Stick retreat
+        retreat = deepcopy(end_stick)
+        retreat[0][0] += x_approach_dist
+        retreat[0][2] = z_stick
+
+        motion = {"approach": {"type":"joint", "pose": transformations.multiply_transform(approach, self.hand_T_stick)},
+                    "init": {"type":"cart", "pose": transformations.multiply_transform(init, self.hand_T_stick)},
+                    "drawing": {"type":"cart", "pose": transformations.multiply_transform(drawing, self.hand_T_stick)},
+                    "retreat": {"type":"cart", "pose": transformations.multiply_transform(retreat, self.hand_T_stick)}}
+
+        self.tfb.sendTransform(init[0], init[1], rospy.Time.now(), emotion + str(len(self.sticks[emotion])), "world")
+        return motion
+
+    def get_drawing_cartesian_motion_horizontal(self, start_stick_horizontal, x_approach_dist, length_stick, emotion):
+        # Stick approach
+        approach = deepcopy(start_stick_horizontal)
+        approach[0][0] += x_approach_dist
+
+        # Stick init
+        init = deepcopy(start_stick_horizontal)
+        
+        # Stick drawing
+        drawing = deepcopy(start_stick_horizontal)
+        drawing[0][1] -= length_stick
+
+        # Stick retreat
+        retreat = deepcopy(start_stick_horizontal)
+        retreat[0][1] -= length_stick
+        retreat[0][0] += x_approach_dist
+
+        motion = {"approach": {"type":"joint", "pose": transformations.multiply_transform(approach, self.hand_T_stick)},
+                    "init": {"type":"cart", "pose": transformations.multiply_transform(init, self.hand_T_stick)},
+                    "drawing": {"type":"cart", "pose": transformations.multiply_transform(drawing, self.hand_T_stick)},
+                    "retreat": {"type":"cart", "pose": transformations.multiply_transform(retreat, self.hand_T_stick)}}
+
+        self.tfb.sendTransform(init[0], init[1], rospy.Time.now(), emotion + str(len(self.sticks[emotion])), "world")
+        return motion
+
     # Calibration part 3
     def compute_sticks(self):
         """
@@ -76,6 +128,7 @@ class Sticks(object):
         height_stick = 0.02    # Length in z direction
         num_height = 7         # Number of sticks in z direction (in height)
         x_approach_dist = 0.05 # Distance from the board for the approach
+        horiz_y_start = 0.005
 
         emotion = "fear"
         z_stick = self.stick_T_world[0][2]
@@ -88,40 +141,25 @@ class Sticks(object):
                         # This is the end side of the stick
                         rotation = self.stick_T_world[1]
                         position = [self.stick_T_world[0][0], y_stick, z_stick + height_stick]
-                        end_stick = [position, rotation]
 
-
-                        # Stick approach
-                        approach = deepcopy(end_stick)
-                        approach[0][0] += x_approach_dist
-                        approach[0][2] = z_stick + height_stick
-
-                        # Stick init
-                        init = deepcopy(end_stick)
-                        init[0][2] = z_stick + height_stick
-                        
-                        # Stick drawing
-                        drawing = deepcopy(end_stick)
-                        drawing[0][2] = z_stick + height_stick - height_stick
-
-                        # Stick retreat
-                        retreat = deepcopy(end_stick)
-                        retreat[0][0] += x_approach_dist
-                        retreat[0][2] = z_stick + height_stick - height_stick
-
-                        motion = {"approach": {"type":"joint", "pose": transformations.multiply_transform(approach, self.hand_T_stick)},
-                                  "init": {"type":"cart", "pose": transformations.multiply_transform(init, self.hand_T_stick)},
-                                  "drawing": {"type":"cart", "pose": transformations.multiply_transform(drawing, self.hand_T_stick)},
-                                  "retreat": {"type":"cart", "pose": transformations.multiply_transform(retreat, self.hand_T_stick)}}
-                        
-                        self.tfb.sendTransform(init[0], init[1], rospy.Time.now(), e + str(len(self.sticks[e])), "world")
-
+                        motion = self.get_drawing_cartesian_motion_vertical([position, rotation],
+                                                                            x_approach_dist, z_stick,
+                                                                            height_stick, e)                      
                         self.sticks[emotion].append(motion)
                         y_stick += y_interval
                         col += 1
+
+                    # Horizontal line
+                    start_position_horiz = [[position[0], position[1] + horiz_y_start, z_stick + height_stick/2], rotation]
+                    length_stick = 2*horiz_y_start + num_sticks*y_interval
+                    motion_horiz = self.get_drawing_cartesian_motion_horizontal(start_position_horiz, x_approach_dist,
+                                                                                length_stick, e)
+                    self.sticks[emotion].append(motion_horiz)
+
                     y_stick += group_interval
+
                 z_stick += z_interval + height_stick
-                if len(self.sticks["fear"]) == num_groups*num_height*num_sticks and len(self.sticks["hope"]) == 0:
+                if len(self.sticks["fear"]) == num_groups*num_height*(num_sticks+1) and len(self.sticks["hope"]) == 0:
                     emotion = "hope"
                     z_stick += 0.02
         rospy.loginfo(str(len(self.sticks["hope"])) + " + " + str(len(self.sticks["fear"])) + " sticks generated")
