@@ -17,7 +17,6 @@ class Sticks(object):
         self.hand_T_stick = [[0, 0, 0], [0, 0, 0, 1]]
         self.stick_T_world = [[0, 0, 0], [0, 0, 0, 1]]
         self.sticks = {"hope": [], "fear": []}
-        self.stick_fk = {"hope" : [], "fear": [], "joints": []}
 
     def set_limb(self, limb):
         self.limb = limb
@@ -91,6 +90,7 @@ class Sticks(object):
                         position = [self.stick_T_world[0][0], y_stick, z_stick + height_stick]
                         end_stick = [position, rotation]
 
+
                         # Stick approach
                         approach = deepcopy(end_stick)
                         approach[0][0] += x_approach_dist
@@ -109,7 +109,11 @@ class Sticks(object):
                         retreat[0][0] += x_approach_dist
                         retreat[0][2] = z_stick + height_stick - height_stick
 
-                        motion = [approach, init, drawing, retreat]
+                        motion = {"approach": {"type":"joint", "pose": transformations.multiply_transform(approach, self.hand_T_stick)},
+                                  "init": {"type":"cart", "pose": transformations.multiply_transform(init, self.hand_T_stick)},
+                                  "drawing": {"type":"cart", "pose": transformations.multiply_transform(drawing, self.hand_T_stick)},
+                                  "retreat": {"type":"cart", "pose": transformations.multiply_transform(retreat, self.hand_T_stick)}}
+                        
                         self.tfb.sendTransform(init[0], init[1], rospy.Time.now(), e + str(len(self.sticks[e])), "world")
 
                         self.sticks[emotion].append(motion)
@@ -117,7 +121,7 @@ class Sticks(object):
                         col += 1
                     y_stick += group_interval
                 z_stick += z_interval + height_stick
-                if len(self.sticks["fear"]) == num_groups*num_height*num_sticks:
+                if len(self.sticks["fear"]) == num_groups*num_height*num_sticks and len(self.sticks["hope"]) == 0:
                     emotion = "hope"
                     z_stick += 0.02
         rospy.loginfo(str(len(self.sticks["hope"])) + " + " + str(len(self.sticks["fear"])) + " sticks generated")
@@ -125,34 +129,33 @@ class Sticks(object):
     # Calibration part 4
     def compute_cartesian_motions(self):
         rospy.loginfo("Computing all cartesian motions...")
-        self.stick_fk = {"hope" : [], "fear": [], "joints": []}
         seed = None
         for emotion in ["fear", "hope"]:
             for stick_id, stick in enumerate(self.sticks[emotion]):
-                motion = []  # The cartesian motion
-                for point_id, point in enumerate(stick):
-                    hand_T_world = transformations.multiply_transform(point, self.hand_T_stick)
-                    self.tfb.sendTransform(hand_T_world[0], hand_T_world[1], rospy.Time.now(), "eik", "world")
+                for mtype, point in stick.items():
                     #rospy.sleep(1)
-                    result = self.limb.ik_request(transformations.list_to_pose(hand_T_world), joint_seed=seed)
+                    result = self.limb.ik_request(transformations.list_to_pose(point["pose"]), joint_seed=seed)
                     if result == False:
                         rospy.logerr("IK can't reach point for stick {} ({})".format(stick_id, emotion))
                         return False
                     else:
-                        motion.append(result.values())
+                        self.sticks["joints"] = result.keys()
+                        self.sticks[emotion][stick_id][mtype]["joints"] = result.values()
                         seed = result
                 #rospy.sleep(1)
-                self.stick_fk[emotion].append(motion)
-                self.stick_fk["joints"] = result.keys()
         rospy.loginfo("Cartesian motions complete")
         return True
 
     # Calibration part 5
     def overwrite_cartesian_motions(self):
-        pass #with open(join(self.rospack.get_path("cs_sawyer"), "config/motions.json"), "w") as f:
-        #    json.dump(self.stick_fk, f)
+        with open(join(self.rospack.get_path("cs_sawyer"), "config/sticks.json"), "w") as f:
+            json.dump(self.sticks, f)
 
     def get_cartesian_motions(self):
-        with open(join(self.rospack.get_path("cs_sawyer"), "config/motions.json")) as f:
-            self.stick_fk = json.load(f)
-        return self.stick_fk
+        try:
+            with open(join(self.rospack.get_path("cs_sawyer"), "config/sticks.json")) as f:
+                self.sticks = json.load(f)
+        except IOError:
+            self._sticks = {"hope": [], "fear": []}
+        finally:
+            return self.sticks

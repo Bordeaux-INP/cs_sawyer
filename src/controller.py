@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
+import tf
 import rospy
 import rospkg
 import json
@@ -10,6 +10,7 @@ from std_msgs.msg import Int32
 from sawyer.sticks import Sticks
 from cs_sawyer.msg import ButtonPressed, LightStatus
 from copy import deepcopy
+from sawyer.transformations import list_to_pose_stamped
 
 from intera_motion_interface import (
     MotionTrajectory,
@@ -45,9 +46,11 @@ class InteractionController(object):
         self.reset_error = False
         self.waiting = {"fear": 0, "hope": 0}  # Votes waiting for execution
         self._sticks = Sticks()
+        self._seed = None
         self.motions = self._sticks.get_cartesian_motions()
         self.head = intera_interface.head.Head()
         self.head.set_pan(-1.57)
+        self.tfb = tf.TransformBroadcaster()
 
         with open(join(self.rospack.get_path("cs_sawyer"), "config/poses.json")) as f:
             self.poses = json.load(f)
@@ -81,6 +84,44 @@ class InteractionController(object):
         self.limb.move_to_neutral(speed=self.speed)
         self.rs.disable()
 
+    def execute_trajectory(self, trajectory, joint_names, speed=None, acceleration=None):
+        """
+        trajectory is a list of points: approach (joint), init (cart), drawing (cart), retreat (cart)
+        """
+        speed = speed if speed is not None else self.speed
+        acceleration = acceleration if acceleration is not None else self.acceleration
+        if isinstance(trajectory, dict) and "approach" in trajectory:
+            for mtype in ["approach", "init", "drawing", "retreat"]:
+                points = trajectory[mtype]
+                print(points)
+                if points["type"] == "joint":
+                    self._seed = points["joints"]
+                    self.move_to_joint_positions(dict(zip(joint_names, points["joints"])))
+                elif points["type"] == "cart":
+
+                    wpt_opts = MotionWaypointOptions(max_joint_speed_ratio=speed/10,
+                                                     max_joint_accel=acceleration)
+
+                    traj  = MotionTrajectory(limb = self.limb)
+                    waypoint = MotionWaypoint(options=wpt_opts)
+                    t_opt = TrajectoryOptions(interpolation_type=TrajectoryOptions.CARTESIAN)
+                    waypoint.set_cartesian_pose(list_to_pose_stamped(points["pose"], frame_id="world"))
+                    waypoint.set_joint_angles(points["joints"])
+                    traj.append_waypoint(waypoint)
+                    traj.set_joint_names(joint_names)
+                    result = traj.send_trajectory(timeout=10)
+
+
+                    if result is None:
+                        rospy.logerr("Trajectory failed to send")
+                    elif not result.result:
+                        rospy.logerr('Motion controller failed to complete the trajectory with error %s', result.errorId)
+                else:
+                    rospy.logwarn("Unknown type %", mtype)
+        else:
+            rospy.logerr("Incorrect inputs to execute_trajectory")
+            return
+
     def move_to_joint_positions(self, positions, speed=None, acceleration=None):
         speed = speed if speed is not None else self.speed
         acceleration = acceleration if acceleration is not None else self.acceleration
@@ -93,16 +134,6 @@ class InteractionController(object):
             waypoint.set_joint_angles(joint_angles = joint_angles)
             traj.set_joint_names(positions.keys())
             traj.append_waypoint(waypoint.to_msg())
-        elif isinstance(positions, (list, tuple)):
-            if len(positions) > 0:
-                joint_angles = positions[0].values()
-                joint_names = positions[0].keys()
-                for point in positions:
-                    waypoint.set_joint_angles(joint_angles = point.values())
-                    traj.append_waypoint(waypoint.to_msg())
-                traj.set_joint_names(joint_names)
-                #t_opt = TrajectoryOptions(end_time=rospy.Time(1))
-                #traj.set_trajectory_options(t_opt)
         else:
             rospy.logerr("Incorrect inputs to move_to_joint_positions")
             return
@@ -199,9 +230,7 @@ class InteractionController(object):
         rospy.logwarn("Executing {} vote num {}".format(type, vote_id))
         self.update_lights(self.ANIMATION_MOTION_RUNNING_HOPE if type == "hope" else self.ANIMATION_MOTION_RUNNING_FEAR)
         # TODO: There are better ways to execute cartesian motions
-
-        self.move_to_joint_positions([dict(zip(self.motions["joints"], point)) for point in self.motions[type][vote_id]])    
-            
+        self.execute_trajectory(self.motions[type][vote_id], self.motions["joints"])
         self.move_to_pause_position()
         rospy.set_param("cs_sawyer/votes/{}/executed".format(type), vote_id + 1)
         self.update_lights(self.ANIMATION_IDLE)
