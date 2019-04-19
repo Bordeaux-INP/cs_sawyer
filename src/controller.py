@@ -63,11 +63,17 @@ class InteractionController(object):
 
     def _cb_button_pressed(self, msg):
         if msg.type.data == ButtonPressed.FEAR and not self.error:
-            rospy.loginfo("Queuing new vote: fear")
-            self.waiting["fear"] += 1
+            if not self.calibrate:
+                rospy.loginfo("Queuing new vote: fear")
+                self.waiting["fear"] += 1
+            else:
+                self.calibrate_requested = True
         elif msg.type.data == ButtonPressed.HOPE and not self.error:
-            rospy.loginfo("Queuing new vote: hope")
-            self.waiting["hope"] += 1
+            if not self.calibrate:
+                rospy.loginfo("Queuing new vote: hope")
+                self.waiting["hope"] += 1
+            else:
+                self.calibrate_requested = True
         elif msg.type.data == ButtonPressed.RESET:
             self.reset_error = True
         elif msg.type.data == ButtonPressed.CALIBRATE:
@@ -165,7 +171,7 @@ class InteractionController(object):
             self.error = False
 
         if self.reset_error:
-            rospy.logerr("Resetting errors")
+            rospy.logwarn("Resetting board")
             self.update_lights(self.ANIMATION_OFF)
             rospy.set_param("cs_sawyer/votes/hope/executed", 0)
             rospy.set_param("cs_sawyer/votes/fear/executed", 0)
@@ -182,7 +188,7 @@ class InteractionController(object):
                 # Waiting for a second press
                 self.update_lights(self.ANIMATION_CALIBRATING)
                 self.calibrate_state_machine_step = 1
-                rospy.logwarn("Prepare init pose and press calibrate again")
+                rospy.logwarn("Prepare init pose and press any button")
                 self.calibrate_requested = False
             elif self.calibrate_state_machine_step == 1:
                 self.update_lights(self.ANIMATION_OFF)
@@ -199,6 +205,8 @@ class InteractionController(object):
                 self.move_to_pause_position()
                 self.waiting['fear'] = 0
                 self.waiting['hope'] = 0
+                rospy.set_param("cs_sawyer/votes/hope/executed", 0)
+                rospy.set_param("cs_sawyer/votes/fear/executed", 0)
                 self.calibrate = False
                 self.calibrate_requested = False
                 self.calibrate_state_machine_step = 0
