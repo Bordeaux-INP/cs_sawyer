@@ -12,6 +12,8 @@ from cs_sawyer.msg import ButtonPressed, LightStatus
 from copy import deepcopy
 from sawyer.transformations import list_to_pose_stamped
 
+from intera_core_msgs.msg import EndpointState
+
 from intera_motion_interface import (
     MotionTrajectory,
     MotionWaypoint,
@@ -33,8 +35,13 @@ class InteractionController(object):
     ANIMATION_OFF = [LightStatus.OFF, LightStatus.OFF]
     Z_PEN_OFFSET = 0.19
 
+    # Collision detection and safety
+    NUM_COLLISION_SAMPLES = 50
+    WRENCH_LIMIT = 700.0
+
     def __init__(self, speed=0.2, acceleration=0.1):
         self.rospack = rospkg.RosPack()
+        self.endpoint = []
         self.last_activity = rospy.Time(0)
         self.speed = speed
         self.acceleration = acceleration
@@ -44,7 +51,6 @@ class InteractionController(object):
         self.calibrate_requested = False
         self.calibrate_state_machine_step = 0
         self.error = False
-        self.reset_error = False
         self.waiting = {"fear": 0, "hope": 0}  # Votes waiting for execution
         self._sticks = Sticks()
         self._seed = None
@@ -61,6 +67,19 @@ class InteractionController(object):
         self.light_pub_hope = rospy.Publisher("cs_sawyer/light/hope", LightStatus, queue_size=1)
         rospy.loginfo("Sawyer Interaction Controller is ready!")
 
+    def _cb_endpoint_received(self, msg):
+        if self.rs and self.rs.state().enabled and self.rs.state().ready:
+            self.endpoint.append(msg)
+            if len(self.endpoint) > self.NUM_COLLISION_SAMPLES:
+                del self.endpoint[0]
+                average_wrench = sum([p.wrench.force.x**2 + p.wrench.force.y**2 + p.wrench.force.z**2 for p in self.endpoint])/len(self.endpoint)
+                if not self.error and average_wrench > self.WRENCH_LIMIT:
+                    self.rs.disable()
+                    self.error = True
+                    self.update_lights(self.ANIMATION_ERROR)
+                    rospy.logerr("COLLISION DETECTED! Wrench limit of {} above {} authorized during {} sec. Move robot and reset.".format(
+                        average_wrench, self.WRENCH_LIMIT, len(self.endpoint)/100.))
+
     def _cb_button_pressed(self, msg):
         if msg.type.data == ButtonPressed.FEAR and not self.error:
             if not self.calibrate:
@@ -75,16 +94,31 @@ class InteractionController(object):
             else:
                 self.calibrate_requested = True
         elif msg.type.data == ButtonPressed.RESET:
-            self.reset_error = True
+            self.reset_errors()
         elif msg.type.data == ButtonPressed.CALIBRATE:
             self.calibrate = True
             self.calibrate_requested = True
+
+    def reset_errors(self):
+        rospy.logwarn("Resetting robot power")
+        self.rs.enable()
+        self.endpoint = []
+        rospy.logwarn("Resetting board")
+        self.update_lights(self.ANIMATION_OFF)
+        rospy.set_param("cs_sawyer/votes/hope/executed", 0)
+        rospy.set_param("cs_sawyer/votes/fear/executed", 0)
+        rospy.sleep(3)
+        # We have just recovered from error, wait a bit for the user...
+        self.waiting['fear'] = 0
+        self.waiting['hope'] = 0      
+        rospy.logwarn("Reset is over, resuming operation...")
 
     def start_robot(self):
         self.rs = intera_interface.RobotEnable(intera_interface.CHECK_VERSION)
         self.rs.enable()
         self.limb = intera_interface.Limb('right')
         self._sticks.set_limb(self.limb)
+        rospy.Subscriber("/robot/limb/right/endpoint_state", EndpointState, self._cb_endpoint_received)
         #self.limb.move_to_neutral(speed=self.speed)
 
     def tuck_robot(self):
@@ -164,24 +198,12 @@ class InteractionController(object):
         if (rospy.get_param("cs_sawyer/votes/hope/executed", 0) >= len(self.motions["hope"]) or \
             rospy.get_param("cs_sawyer/votes/fear/executed", 0) >= len(self.motions["fear"])):
             if not self.error:
-                rospy.logerr("Board full, please reset...")
+                rospy.logwarn("Board full, please reset...")
             self.error = True
             self.update_lights(self.ANIMATION_ERROR)
         else:
             self.error = False
-
-        if self.reset_error:
-            rospy.logwarn("Resetting board")
-            self.update_lights(self.ANIMATION_OFF)
-            rospy.set_param("cs_sawyer/votes/hope/executed", 0)
-            rospy.set_param("cs_sawyer/votes/fear/executed", 0)
-            rospy.sleep(3)
-            # We have just recovered from error, wait a bit for the user...
-            self.waiting['fear'] = 0
-            self.waiting['hope'] = 0
-            self.reset_error = False       
-            rospy.logwarn("Reset is over, resuming operation...")
-    
+   
     def check_calibration(self):
         if self.calibrate and self.calibrate_requested:
             if self.calibrate_state_machine_step == 0:
