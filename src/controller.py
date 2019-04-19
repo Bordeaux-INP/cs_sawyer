@@ -105,10 +105,15 @@ class InteractionController(object):
                     traj  = MotionTrajectory(limb = self.limb)
                     waypoint = MotionWaypoint(options=wpt_opts)
                     t_opt = TrajectoryOptions(interpolation_type=TrajectoryOptions.CARTESIAN)
-                    waypoint.set_cartesian_pose(list_to_pose_stamped(points["pose"], frame_id="world"))
-                    waypoint.set_joint_angles(points["joints"])
+                    jv = deepcopy(points["joints"])
+                    jv.reverse()
+                    waypoint.set_joint_angles(jv) 
+                    waypoint.set_cartesian_pose(list_to_pose_stamped(points["pose"], frame_id="base"))
                     traj.append_waypoint(waypoint)
-                    traj.set_joint_names(joint_names)
+                    jn = [str(j) for j in joint_names]
+                    jn.reverse()
+                    traj.set_joint_names(jn)
+                    traj.set_trajectory_options(t_opt)
                     result = traj.send_trajectory(timeout=10)
                     self.last_activity = rospy.Time.now()
                     if result is None:
