@@ -19,7 +19,8 @@ class Buttons(object):
     PIN_LED_FEAR = 17
     PIN_BUTTON_FEAR = 27
 
-    RESET_PRESS_DURATION = 4    # Press at least this time to send reset signal
+    RESET_PRESS_DURATION = 9    # Press at least this time to send reset signal
+    CALIB_PRESS_DURATION = 19   # Press at least this time to send calibrate signal
     MIN_PRESS_INTERVAL = 5      # Interval in seconds in which a second press will be ignored
     TIMEOUT_DURATION = 60       # Timeout duration if no LED update message is received from the controller
 
@@ -33,6 +34,7 @@ class Buttons(object):
         self.last_fear_led_update_time = rospy.Time(0)
         self.first_pressed_time_hope = None
         self.first_pressed_time_fear = None
+        self.last_button_states = {'hope': False, 'fear': False}
         self.publisher = rospy.Publisher("cs_sawyer/button", ButtonPressed, queue_size=1)
         self.fear_led_status = LightStatus.OFF
         self.hope_led_status = LightStatus.OFF
@@ -66,16 +68,20 @@ class Buttons(object):
         self.hope_led_status = msg.type.data
         self.last_received_led_time = rospy.Time.now()
 
-    def pressed(self, button_id):
+    def current_press_state(self, emotion):
+        return GPIO.input(self.PIN_BUTTON_FEAR if emotion == 'fear' else self.PIN_BUTTON_HOPE)
+
+    def pressed(self, emotion, current_state):
         if gpio_available:
-            return GPIO.input(button_id)
+            # Considered pressed only on falling edge
+            pressed = self.last_button_states[emotion] and not current_state
+            self.last_button_states[emotion] = current_state
+            return pressed
         else:
             return False
 
-    def update_leds(self):
+    def update_leds(self, now):
         if gpio_available:
-            now = rospy.Time.now()
-
             # Measure timeout
             if now > self.last_received_led_time + rospy.Duration(self.TIMEOUT_DURATION):
                 self.hope_led_status_previous = self.hope_led_status
@@ -131,38 +137,59 @@ class Buttons(object):
                     GPIO.output(self.PIN_LED_FEAR, self._fear_led_on)
                     self.last_fear_led_update_time = now
 
-    def run(self):
-        rate = rospy.Rate(10)
-        while not rospy.is_shutdown():
-            self.update_leds()
-            # TODO: very long press should not increment the counter
-            now = rospy.Time.now()
-            if self.pressed(self.PIN_BUTTON_HOPE):
-                if self.first_pressed_time_hope is None:
-                    self.first_pressed_time_hope = now
-                if now > self.last_pressed_time + rospy.Duration(self.MIN_PRESS_INTERVAL):
-                    self.last_pressed_time = now
-                    self.publisher.publish(ButtonPressed(type=Int32(ButtonPressed.HOPE)))
-            else:
-                self.first_pressed_time_hope = None
-            
-            if self.pressed(self.PIN_BUTTON_FEAR):
-                if self.first_pressed_time_fear is None:
-                    self.first_pressed_time_fear = now
-                if now > self.last_pressed_time + rospy.Duration(self.MIN_PRESS_INTERVAL):
-                    self.last_pressed_time = now
-                    self.publisher.publish(ButtonPressed(type=Int32(ButtonPressed.FEAR)))
-            else:
-                self.first_pressed_time_fear = None
+    def update_buttons(self, now):
+        hope_current_press = self.current_press_state('hope')   # instant
+        fear_current_press = self.current_press_state('fear')   # instant
+        hope_pressed = self.pressed('hope', hope_current_press) # falling edge
+        fear_pressed = self.pressed('fear', fear_current_press) # falling edge
 
-            # Reset signal
-            if self.first_pressed_time_hope is not None and self.first_pressed_time_fear is not None:
-                if now > self.first_pressed_time_hope + rospy.Duration(self.RESET_PRESS_DURATION) and \
-                    now > self.first_pressed_time_fear + rospy.Duration(self.RESET_PRESS_DURATION):
+        # UPDATE LONG PRESS SIGNALS IF ANY
+        if self.first_pressed_time_hope is not None and self.first_pressed_time_fear is not None:
+            if now > self.first_pressed_time_hope + rospy.Duration(self.RESET_PRESS_DURATION) and \
+                now > self.first_pressed_time_fear + rospy.Duration(self.RESET_PRESS_DURATION) and \
+                    not (fear_current_press and hope_current_press):
                     self.publisher.publish(ButtonPressed(type=Int32(ButtonPressed.RESET)))
                     self.first_pressed_time_hope = None
                     self.first_pressed_time_fear = None
+                    self.last_pressed_time = now
+            elif now > self.first_pressed_time_hope + rospy.Duration(self.CALIB_PRESS_DURATION) and \
+                now > self.first_pressed_time_fear + rospy.Duration(self.CALIB_PRESS_DURATION):
+                self.publisher.publish(ButtonPressed(type=Int32(ButtonPressed.CALIBRATE)))
+                self.first_pressed_time_hope = None
+                self.first_pressed_time_fear = None
+                self.last_pressed_time = now
 
+        # INSTANT PRESSES BEHAVIOURS
+        if hope_current_press:
+            if self.first_pressed_time_hope is None:
+                self.first_pressed_time_hope = now
+        elif not fear_current_press:
+            self.first_pressed_time_hope = None
+
+        if fear_current_press:
+            if self.first_pressed_time_fear is None:
+                self.first_pressed_time_fear = now
+        elif not hope_current_press:
+            self.first_pressed_time_fear = None
+
+        # FALLING EDGES BEHAVIOURS
+        if hope_pressed:
+            if now > self.last_pressed_time + rospy.Duration(self.MIN_PRESS_INTERVAL):
+                if not fear_current_press:  # This excludes mutual presses (reset and calibrate)
+                    self.last_pressed_time = now
+                    self.publisher.publish(ButtonPressed(type=Int32(ButtonPressed.HOPE)))           
+        if fear_pressed:
+            if now > self.last_pressed_time + rospy.Duration(self.MIN_PRESS_INTERVAL):
+                if not hope_current_press:  # This excludes mutual presses (reset and calibrate)
+                    self.last_pressed_time = now
+                    self.publisher.publish(ButtonPressed(type=Int32(ButtonPressed.FEAR)))
+
+    def run(self):
+        rate = rospy.Rate(10)
+        while not rospy.is_shutdown():
+            now = rospy.Time.now()
+            self.update_leds(now)
+            self.update_buttons(now)
             rate.sleep()
 
 if __name__ == '__main__':
