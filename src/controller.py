@@ -33,7 +33,7 @@ class InteractionController(object):
     ANIMATION_OFF = [LightStatus.OFF, LightStatus.OFF]
     Z_PEN_OFFSET = 0.19
 
-    def __init__(self, speed=0.15, acceleration=0.001):
+    def __init__(self, speed=0.2, acceleration=0.1):
         self.rospack = rospkg.RosPack()
         self.last_activity = rospy.Time(0)
         self.speed = speed
@@ -99,7 +99,7 @@ class InteractionController(object):
                     self.move_to_joint_positions(dict(zip(joint_names, points["joints"])))
                 elif points["type"] == "cart":
 
-                    wpt_opts = MotionWaypointOptions(max_joint_speed_ratio=0.05,  # Fixme: hack low speed
+                    wpt_opts = MotionWaypointOptions(max_joint_speed_ratio=speed,
                                                      max_joint_accel=acceleration)
 
                     traj  = MotionTrajectory(limb = self.limb)
@@ -241,7 +241,7 @@ class InteractionController(object):
         if vote_id % (self.motions["dimensions"][2] * self.motions["dimensions"][1]) == 0:
             rospy.loginfo("Line full, going through pause position to avoid collisions")
             self.move_to_pause_position()
-        self.execute_trajectory(self.motions[type][vote_id], self.motions["joints"])
+        self.execute_trajectory(self.motions[type][vote_id], self.motions["joints"], speed=0.6)
         rospy.set_param("cs_sawyer/votes/{}/executed".format(type), vote_id + 1)
         self.update_lights(self.ANIMATION_IDLE)
 
