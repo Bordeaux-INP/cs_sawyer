@@ -162,6 +162,7 @@ class Sticks(object):
                 if len(self.sticks["fear"]) == num_groups*num_height*(num_sticks+1) and len(self.sticks["hope"]) == 0:
                     emotion = "hope"
                     z_stick += 0.02
+        self.sticks["dimensions"] = (num_height, num_groups, num_sticks + 1)  # + 1 means that there is also the horizontal line
         rospy.loginfo(str(len(self.sticks["hope"])) + " + " + str(len(self.sticks["fear"])) + " sticks generated")
 
     # Calibration part 4

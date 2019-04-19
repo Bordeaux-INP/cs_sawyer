@@ -237,7 +237,10 @@ class InteractionController(object):
         vote_id = rospy.get_param("cs_sawyer/votes/{}/executed".format(type), 0)
         rospy.logwarn("Executing {} vote num {}".format(type, vote_id))
         self.update_lights(self.ANIMATION_MOTION_RUNNING_HOPE if type == "hope" else self.ANIMATION_MOTION_RUNNING_FEAR)
-        # TODO: There are better ways to execute cartesian motions
+
+        if vote_id % (self.motions["dimensions"][2] * self.motions["dimensions"][1]) == 0:
+            rospy.loginfo("Line full, going through pause position to avoid collisions")
+            self.move_to_pause_position()
         self.execute_trajectory(self.motions[type][vote_id], self.motions["joints"])
         rospy.set_param("cs_sawyer/votes/{}/executed".format(type), vote_id + 1)
         self.update_lights(self.ANIMATION_IDLE)
