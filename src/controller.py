@@ -73,7 +73,7 @@ class InteractionController(object):
             if len(self.endpoint) > self.NUM_COLLISION_SAMPLES:
                 del self.endpoint[0]
                 average_wrench = sum([p.wrench.force.x**2 + p.wrench.force.y**2 + p.wrench.force.z**2 for p in self.endpoint])/len(self.endpoint)
-                if not self.error and average_wrench > self.WRENCH_LIMIT:
+                if not self.calibrate and not self.error and average_wrench > self.WRENCH_LIMIT:
                     self.rs.disable()
                     self.error = True
                     self.update_lights(self.ANIMATION_ERROR)
