@@ -126,7 +126,7 @@ class Sticks(object):
         num_groups = 10        # Number of stick groups per line
         num_sticks = 4         # Number of sticks per group
         height_stick = 0.02    # Length in z direction
-        num_height = 7         # Number of sticks in z direction (in height)
+        num_height = 8         # Number of sticks in z direction (in height)
         x_approach_dist = 0.05 # Distance from the board for the approach
         horiz_y_start = 0.005
 
