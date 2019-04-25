@@ -5,11 +5,13 @@ import rospy
 import rospkg
 import json
 import intera_interface
-from os.path import join
+from os.path import join, isdir
+from os import makedirs
 from std_msgs.msg import Int32
 from sawyer.sticks import Sticks
 from cs_sawyer.msg import ButtonPressed, LightStatus
 from copy import deepcopy
+from time import strftime, time
 from sawyer.transformations import list_to_pose_stamped
 
 from intera_core_msgs.msg import EndpointState
@@ -51,6 +53,7 @@ class InteractionController(object):
         self.calibrate_requested = False
         self.calibrate_state_machine_step = 0
         self.error = False
+        self.external_error = False
         self.waiting = {"fear": 0, "hope": 0}  # Votes waiting for execution
         self._sticks = Sticks()
         self._seed = None
@@ -75,7 +78,7 @@ class InteractionController(object):
                 average_wrench = sum([p.wrench.force.x**2 + p.wrench.force.y**2 + p.wrench.force.z**2 for p in self.endpoint])/len(self.endpoint)
                 if not self.calibrate and not self.error and average_wrench > self.WRENCH_LIMIT:
                     self.rs.disable()
-                    self.error = True
+                    self.external_error = True
                     self.update_lights(self.ANIMATION_ERROR)
                     rospy.logerr("COLLISION DETECTED! Wrench limit of {} above {} authorized during {} sec. Move robot and reset.".format(
                         average_wrench, self.WRENCH_LIMIT, len(self.endpoint)/100.))
@@ -85,19 +88,23 @@ class InteractionController(object):
             if not self.calibrate:
                 rospy.loginfo("Queuing new vote: fear")
                 self.waiting["fear"] += 1
+                self.save_vote("fear")
             else:
                 self.calibrate_requested = True
         elif msg.type.data == ButtonPressed.HOPE and not self.error:
             if not self.calibrate:
                 rospy.loginfo("Queuing new vote: hope")
                 self.waiting["hope"] += 1
+                self.save_vote("hope")
             else:
                 self.calibrate_requested = True
         elif msg.type.data == ButtonPressed.RESET:
             self.reset_errors()
+            self.save_vote("reset")
         elif msg.type.data == ButtonPressed.CALIBRATE:
             self.calibrate = True
             self.calibrate_requested = True
+            self.save_vote("calibration")
 
     def reset_errors(self):
         rospy.logwarn("Resetting robot power")
@@ -110,8 +117,25 @@ class InteractionController(object):
         rospy.sleep(3)
         # We have just recovered from error, wait a bit for the user...
         self.waiting['fear'] = 0
-        self.waiting['hope'] = 0      
+        self.waiting['hope'] = 0
+        self.external_error = False
         rospy.logwarn("Reset is over, resuming operation...")
+
+    def save_vote(self, type):
+        date = strftime("%Y/%B/%d")
+        day = strftime("%H_%M_%S")
+        vote_dir = join(self.rospack.get_path("cs_sawyer"), "data", date)
+        vote_file = join(vote_dir, day + "_{}.json".format(type))
+        vote_data = {"type": type, "stamp": time()}
+        try:
+            if not isdir(vote_dir):
+                makedirs(vote_dir)
+            with open(vote_file, "w") as f:
+                json.dump(vote_data, f)
+        except IOError as e:
+            rospy.logerr("Can't save vote: " + repr(e))
+            self.external_error = True
+            self.update_lights(self.ANIMATION_ERROR)
 
     def start_robot(self):
         self.rs = intera_interface.RobotEnable(intera_interface.CHECK_VERSION)
@@ -201,6 +225,8 @@ class InteractionController(object):
                 rospy.logwarn("Board full, please reset...")
             self.error = True
             self.update_lights(self.ANIMATION_ERROR)
+        elif self.external_error:
+            self.error = True
         else:
             self.error = False
    
