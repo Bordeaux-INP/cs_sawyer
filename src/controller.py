@@ -143,7 +143,7 @@ class InteractionController(object):
                                                      max_joint_accel=acceleration)
 
                     traj  = MotionTrajectory(limb = self.limb)
-                    waypoint = MotionWaypoint(options=wpt_opts)
+                    waypoint = MotionWaypoint(options=wpt_opts, limb=self.limb)
                     t_opt = TrajectoryOptions(interpolation_type=TrajectoryOptions.CARTESIAN)
                     jv = deepcopy(points["joints"])
                     jv.reverse()
