@@ -2,6 +2,7 @@
 Description=Sawyer experiment
 
 [Service]
+User=pi
 Type=simple
 ExecStart=/usr/bin/nohup /home/pi/ros_ws/src/cs_sawyer/install/autostart.bash
 StandardOutput=journal
