@@ -9,12 +9,12 @@ hostname=`hostname`
 export ROS_MASTER_URI="http://${master_hostname}.local:11311"
 export ROS_HOSTNAME="${hostname}.local"
 
-if [ -f /home/pi/ros_ws/devel_isolated/setup.bash ]; then
- source /home/pi/ros_ws/devel_isolated/setup.bash
+if [ -f ~/ros_ws/devel_isolated/setup.bash ]; then
+ source ~/ros_ws/devel_isolated/setup.bash
 fi
 
-if [ -f /home/pi/ros_ws/devel/setup.bash ]; then
- source /home/pi/ros_ws/devel/setup.bash
+if [ -f ~/ros_ws/devel/setup.bash ]; then
+ source ~/ros_ws/devel/setup.bash
 fi
 
 roslaunch cs_sawyer "${hostname}.launch"
