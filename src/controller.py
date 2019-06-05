@@ -42,6 +42,7 @@ class InteractionController(object):
     WRENCH_LIMIT = 700.0
 
     def __init__(self, speed=0.2, acceleration=0.1):
+        rospy.set_param("cs_sawyer/error", "")
         self.rospack = rospkg.RosPack()
         self.endpoint = []
         self.last_activity = rospy.Time(0)
@@ -80,6 +81,7 @@ class InteractionController(object):
                     self.rs.disable()
                     self.external_error = True
                     self.update_lights(self.ANIMATION_ERROR)
+                    rospy.set_param("cs_sawyer/error", "collision")
                     rospy.logerr("COLLISION DETECTED! Wrench limit of {} above {} authorized during {} sec. Move robot and reset.".format(
                         average_wrench, self.WRENCH_LIMIT, len(self.endpoint)/100.))
 
@@ -107,6 +109,7 @@ class InteractionController(object):
             self.save_vote("calibration")
 
     def reset_errors(self):
+        rospy.set_param("cs_sawyer/error", "")
         rospy.logwarn("Resetting robot power")
         self.rs.enable()
         self.endpoint = []
@@ -135,6 +138,7 @@ class InteractionController(object):
         except IOError as e:
             rospy.logerr("Can't save vote: " + repr(e))
             self.external_error = True
+            rospy.set_param("cs_sawyer/error", "cantsave")
             self.update_lights(self.ANIMATION_ERROR)
 
     def start_robot(self):
@@ -222,6 +226,7 @@ class InteractionController(object):
         if (rospy.get_param("cs_sawyer/votes/hope/executed", 0) >= len(self.motions["hope"]) or \
             rospy.get_param("cs_sawyer/votes/fear/executed", 0) >= len(self.motions["fear"])):
             if not self.error:
+                rospy.set_param("cs_sawyer/error", "full")
                 rospy.logwarn("Board full, please reset...")
             self.error = True
             self.update_lights(self.ANIMATION_ERROR)
