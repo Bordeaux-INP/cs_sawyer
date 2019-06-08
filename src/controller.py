@@ -310,6 +310,7 @@ class InteractionController(object):
         self.execute_trajectory(self.motions[type][vote_id], self.motions["joints"], speed=0.6)
         rospy.set_param("cs_sawyer/votes/{}/executed".format(type), vote_id + 1)
         self.update_lights(self.ANIMATION_IDLE)
+        self.last_vote = type
 
 
 if __name__=='__main__':
