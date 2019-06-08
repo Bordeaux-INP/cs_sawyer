@@ -62,6 +62,7 @@ class InteractionController(object):
         self.head = intera_interface.head.Head()
         self.head.set_pan(-1.57)
         self.tfb = tf.TransformBroadcaster()
+        self.last_vote = ""
 
         with open(join(self.rospack.get_path("cs_sawyer"), "config/poses.json")) as f:
             self.poses = json.load(f)
@@ -220,6 +221,7 @@ class InteractionController(object):
                          result.errorId)
 
     def move_to_pause_position(self):
+        self.last_vote = ""
         self.limb.set_joint_position_speed(self.speed)
         self.move_to_joint_positions(self.poses["pause"])
 
@@ -296,6 +298,8 @@ class InteractionController(object):
         self.light_pub_fear.publish(LightStatus(type=Int32(fear)))
 
     def move(self, type):
+        if self.last_vote != "" and self.last_vote != type:
+            self.move_to_pause_position()
         vote_id = rospy.get_param("cs_sawyer/votes/{}/executed".format(type), 0)
         rospy.logwarn("Executing {} vote num {}".format(type, vote_id))
         self.update_lights(self.ANIMATION_MOTION_RUNNING_HOPE if type == "hope" else self.ANIMATION_MOTION_RUNNING_FEAR)
