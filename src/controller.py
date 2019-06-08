@@ -109,19 +109,20 @@ class InteractionController(object):
             self.save_vote("calibration")
 
     def reset_errors(self):
-        rospy.set_param("cs_sawyer/error", "")
         rospy.logwarn("Resetting robot power")
         self.rs.enable()
         self.endpoint = []
         rospy.logwarn("Resetting board")
         self.update_lights(self.ANIMATION_OFF)
-        rospy.set_param("cs_sawyer/votes/hope/executed", 0)
-        rospy.set_param("cs_sawyer/votes/fear/executed", 0)
+        if rospy.get_param("cs_sawyer/error", "") == "full":
+            rospy.set_param("cs_sawyer/votes/hope/executed", 0)
+            rospy.set_param("cs_sawyer/votes/fear/executed", 0)
+            self.waiting['fear'] = 0
+            self.waiting['hope'] = 0
         rospy.sleep(3)
         # We have just recovered from error, wait a bit for the user...
-        self.waiting['fear'] = 0
-        self.waiting['hope'] = 0
         self.external_error = False
+        rospy.set_param("cs_sawyer/error", "")
         rospy.logwarn("Reset is over, resuming operation...")
 
     def save_vote(self, type):
