@@ -7,6 +7,7 @@ import json
 import intera_interface
 from os.path import join, isdir
 from os import makedirs
+from std_msgs.msg import UInt8
 from std_msgs.msg import Int32
 from sawyer.sticks import Sticks
 from cs_sawyer.msg import ButtonPressed, LightStatus
@@ -68,6 +69,7 @@ class InteractionController(object):
             self.poses = json.load(f)
 
         rospy.Subscriber("cs_sawyer/button", ButtonPressed, self._cb_button_pressed)
+        self.state_publisher = rospy.Publisher("/cs_sawyer/head_light",UInt8,queue_size=1)
         self.light_pub_fear = rospy.Publisher("cs_sawyer/light/fear", LightStatus, queue_size=1)
         self.light_pub_hope = rospy.Publisher("cs_sawyer/light/hope", LightStatus, queue_size=1)
         rospy.loginfo("Sawyer Interaction Controller is ready!")
@@ -237,6 +239,9 @@ class InteractionController(object):
             self.error = True
         else:
             self.error = False
+        
+        if self.error == True:
+            self.state_publisher.publish(1)
    
     def check_calibration(self):
         if self.calibrate and self.calibrate_requested:
@@ -281,12 +286,16 @@ class InteractionController(object):
                     self.update_lights(self.ANIMATION_IDLE)
                     if self.waiting["hope"] > 0:
                         self.waiting["hope"] -= 1
+                        self.state_publisher.publish(2)
                         self.move("hope")
                     elif self.waiting["fear"] > 0:
                         self.waiting["fear"] -= 1
+                        self.state_publisher.publish(3)
                         self.move("fear")
                     elif rospy.Time.now() > self.last_activity + rospy.Duration(5):
+                        self.state_publisher.publish(0)
                         self.move_to_pause_position()
+                        
 
             rate.sleep()
         self.update_lights(self.ANIMATION_OFF)

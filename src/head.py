@@ -13,6 +13,8 @@ from numpy import zeros, uint8
 from sensor_msgs.msg import Image
 from collections import deque
 from cv_bridge import CvBridge
+import argparse
+from intera_interface import Lights
 
 
 class HeadDisplay(object):
@@ -33,6 +35,8 @@ class HeadDisplay(object):
         self.standby_screens = ["fear", "hope", "intro"]
         self.current_standby_screen = 0
         self.last_fear_num, self.last_hope_num = 0, 0
+       
+        
 
         for image in ["error-any", "error-collision",  "error-full",  "fear",  "hope",  "intro"]:
             filename = image + ".png"

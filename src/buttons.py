@@ -4,6 +4,7 @@
 import rospy
 from cs_sawyer.msg import ButtonPressed, LightStatus
 from std_msgs.msg import Int32
+from std_msgs.msg import UInt8
 try:
     import RPi.GPIO as GPIO
 except ImportError:
@@ -36,6 +37,7 @@ class Buttons(object):
         self.first_pressed_time_fear = None
         self.last_button_states = {'hope': False, 'fear': False}
         self.publisher = rospy.Publisher("cs_sawyer/button", ButtonPressed, queue_size=1)
+        self.state_publisher = rospy.Publisher("/cs_sawyer/head_light",UInt8,queue_size=1)
         self.fear_led_status = LightStatus.OFF
         self.hope_led_status = LightStatus.OFF
         self.fear_led_status_previous = LightStatus.OFF
