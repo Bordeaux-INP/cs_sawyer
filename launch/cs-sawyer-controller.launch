@@ -1,5 +1,7 @@
 <?xml version="1.0"?>
 <launch>  
   <node pkg="cs_sawyer" type="controller.py" name="cs_sawyer_controller" output="screen" respawn="true"/>
-  <node pkg="cs_sawyer" type="head.py" name="cs_sawyer_head" output="screen" respawn="true"/>
+  <node pkg="cs_sawyer" type="head_expressions.py" name="cs_sawyer_head" output="screen" respawn="true"/>
+  <node pkg="cs_sawyer" type="head_move.py" name="cs_sawyer_head_move" output="screen" respawn="true"/>
+  <node pkg="cs_sawyer" type="head_light.py" name="cs_sawyer_head_light" output="screen" respawn="true"/>
 </launch>

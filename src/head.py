@@ -14,7 +14,6 @@ from sensor_msgs.msg import Image
 from collections import deque
 from cv_bridge import CvBridge
 import argparse
-from intera_interface import Lights
 
 
 class HeadDisplay(object):

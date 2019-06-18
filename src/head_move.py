@@ -4,18 +4,8 @@
 
 import intera_interface
 from intera_interface import CHECK_VERSION
-from intera_interface import Lights
-from cs_sawyer.msg import ButtonPressed, LightStatus
 from std_msgs.msg import UInt8
-import rospy, rospkg
-from os.path import join, isdir, isfile
-from os import listdir
-from tf import LookupException
-import json, cv2, cv_bridge
-from numpy import zeros, uint8
-from sensor_msgs.msg import Image
-from collections import deque
-from cv_bridge import CvBridge
+import rospy
 import argparse	
 import time
 import random
@@ -45,11 +35,13 @@ class Head_Move(object):
         command_rate = rospy.Rate(1)
         control_rate = rospy.Rate(100)
         while self.robot_state== 0:
-            angle = random.uniform(-2.8, 0.3)
+            angle = random.uniform(-2.8, -0.5)
             while (not rospy.is_shutdown() and
                    not (abs(self._head.pan() - angle) <=
                        intera_interface.HEAD_PAN_ANGLE_TOLERANCE)):
                 self._head.set_pan(angle, speed=0.3, timeout=0)
+                if self.robot_state ==0 :
+                    break
                 control_rate.sleep()
             command_rate.sleep()
         
