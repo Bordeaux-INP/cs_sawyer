@@ -35,11 +35,11 @@ class Head_Move(object):
         command_rate = rospy.Rate(1)
         control_rate = rospy.Rate(100)
         while self.robot_state== 0:
-            angle = random.uniform(-2.8, -0.5)
+            angle = random.uniform(-2.5, -0.5)
             while (not rospy.is_shutdown() and
                    not (abs(self._head.pan() - angle) <=
                        intera_interface.HEAD_PAN_ANGLE_TOLERANCE)):
-                self._head.set_pan(angle, speed=0.3, timeout=0)
+                self._head.set_pan(angle, speed=0.2, timeout=0)
                 if self.robot_state ==0 :
                     break
                 control_rate.sleep()
@@ -49,7 +49,7 @@ class Head_Move(object):
         self._head.set_pan(-1.57)
     
     def set_look_board(self):
-        self._head.set_pan(-3)
+        self._head.set_pan(-2.5)
 
     def callback_update_move(self,msg):
         self.robot_state = msg.data

@@ -5,9 +5,11 @@ import rospy
 import rospkg
 import json
 import intera_interface
+from math import sin,pi
 from os.path import join, isdir
 from os import makedirs
 from std_msgs.msg import UInt8
+from std_msgs.msg import Bool
 from std_msgs.msg import Int32
 from sawyer.sticks import Sticks
 from cs_sawyer.msg import ButtonPressed, LightStatus
@@ -64,15 +66,21 @@ class InteractionController(object):
         self.head.set_pan(-1.57)
         self.tfb = tf.TransformBroadcaster()
         self.last_vote = ""
-
+        self.breath_state =0 # false
         with open(join(self.rospack.get_path("cs_sawyer"), "config/poses.json")) as f:
             self.poses = json.load(f)
 
         rospy.Subscriber("cs_sawyer/button", ButtonPressed, self._cb_button_pressed)
-        self.state_publisher = rospy.Publisher("/cs_sawyer/head_light",UInt8,queue_size=1)
+        self.state_publisher = rospy.Publisher("/cs_sawyer/head_light",UInt8,queue_size=1) ###### 
+        self.pub_breath = rospy.Publisher("/cs_sawyer/breath",Bool,queue_size=1) ###### 
         self.light_pub_fear = rospy.Publisher("cs_sawyer/light/fear", LightStatus, queue_size=1)
         self.light_pub_hope = rospy.Publisher("cs_sawyer/light/hope", LightStatus, queue_size=1)
         rospy.loginfo("Sawyer Interaction Controller is ready!")
+        rospy.Subscriber("cs_sawyer/breath", Bool, self.callback_update_breath2)
+
+    
+    def callback_update_move(self,msg):
+        self.robot_state = msg.data
 
     def _cb_endpoint_received(self, msg):
         if self.rs and self.rs.state().enabled and self.rs.state().ready:
@@ -87,6 +95,10 @@ class InteractionController(object):
                     rospy.set_param("cs_sawyer/error", "collision")
                     rospy.logerr("COLLISION DETECTED! Wrench limit of {} above {} authorized during {} sec. Move robot and reset.".format(
                         average_wrench, self.WRENCH_LIMIT, len(self.endpoint)/100.))
+    
+    def callback_update_breath2(self,msg):
+        self.breath_state = msg.data
+
 
     def _cb_button_pressed(self, msg):
         if msg.type.data == ButtonPressed.FEAR and not self.error:
@@ -226,6 +238,8 @@ class InteractionController(object):
         self.last_vote = ""
         self.limb.set_joint_position_speed(self.speed)
         self.move_to_joint_positions(self.poses["pause"])
+    
+
 
     def check_for_errors(self):
         if (rospy.get_param("cs_sawyer/votes/hope/executed", 0) >= len(self.motions["hope"]) or \
@@ -241,7 +255,8 @@ class InteractionController(object):
             self.error = False
         
         if self.error == True:
-            self.state_publisher.publish(1)
+            self.pub_breath.publish(0)
+            self.state_publisher.publish(1)  ###########
    
     def check_calibration(self):
         if self.calibrate and self.calibrate_requested:
@@ -286,15 +301,23 @@ class InteractionController(object):
                     self.update_lights(self.ANIMATION_IDLE)
                     if self.waiting["hope"] > 0:
                         self.waiting["hope"] -= 1
-                        self.state_publisher.publish(2)
+                        self.state_publisher.publish(2) #####
+                        self.pub_breath.publish(0)
                         self.move("hope")
                     elif self.waiting["fear"] > 0:
                         self.waiting["fear"] -= 1
-                        self.state_publisher.publish(3)
+                        self.state_publisher.publish(3)   #####
+                        self.pub_breath.publish(0)
                         self.move("fear")
                     elif rospy.Time.now() > self.last_activity + rospy.Duration(5):
-                        self.state_publisher.publish(0)
-                        self.move_to_pause_position()
+                        self.state_publisher.publish(0)  ######
+                    
+                        if not self.breath_state:
+                            rospy.loginfo('pause')
+                            self.move_to_pause_position()
+                            self.pub_breath.publish(1)
+
+                   
                         
 
             rate.sleep()
@@ -307,7 +330,7 @@ class InteractionController(object):
         self.light_pub_fear.publish(LightStatus(type=Int32(fear)))
 
     def move(self, type):
-        if self.last_vote != "" and self.last_vote != type:
+        if self.last_vote != "" and self.last_vote != type:  ##############"" ?il faudra remettre sur pause position
             self.move_to_pause_position()
         vote_id = rospy.get_param("cs_sawyer/votes/{}/executed".format(type), 0)
         rospy.logwarn("Executing {} vote num {}".format(type, vote_id))

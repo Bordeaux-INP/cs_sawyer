@@ -15,7 +15,8 @@ class Head_Light(object):
 
     def __init__(self):
         self.l = Lights()
-        self.robot_light_fear = ['head_green_light', 'head_red_light']
+        #self.robot_light_fear = ['head_green_light', 'head_red_light']
+        self.robot_light_fear = ['head_blue_light']
         self.robot_light_hope = ['head_green_light']
         self.robot_light_error = ['head_red_light']
         self.robot_all_leds = ['head_red_light', 'head_blue_light','head_green_light']
