@@ -25,10 +25,10 @@ class Head_Expressions(object):
     RATE_SEC = 40
 
     def __init__(self):
-        nbhappy = 60
+        nbhappy = 150
         nbsad = 150
         nbneutral = 150
-        nbattention = 1
+        nbattention = 70
         nbsound = 11
 
         self.img_neutral = {}
@@ -50,14 +50,26 @@ class Head_Expressions(object):
 
 
 ########## HAPPY LOAD IMG
+
         for i in range (0,nbhappy):
-           num = i+1
-           self.list_happy.append('c'+ str(num))
-        
+            img= 'c_0000'
+            if i <10:
+               img=img+str(i)
+            elif i<100:
+                img=img[:-1]
+                img=img+str(i)
+            else:
+                img=img[:-2]
+                img=img+str(i)
+
+            self.list_happy.append(img)
+
         for image in self.list_happy:
             filename = image + ".png"
             cv_image = cv2.imread(join(self.rospack.get_path("cs_sawyer"), "images/happy", filename))
             self.img_happy[image] = cv_image
+
+       
 
 
 ########## ERROR LOAD IMG
@@ -109,13 +121,22 @@ class Head_Expressions(object):
 ########### ATTENTION LOAD IMG
 
         for i in range (0,nbattention):
-           num=i+1
-           self.list_attention.append('a'+str(num))
-        
+            img= 'a_0000'
+            if i <10:
+               img=img+str(i)
+            elif i<100:
+                img=img[:-1]
+                img=img+str(i)
+            else:
+                img=img[:-2]
+                img=img+str(i)
+
+            self.list_attention.append(img)
         for image in self.list_attention:
-            filename = image + ".jpg"
+            filename = image + ".png"
             cv_image = cv2.imread(join(self.rospack.get_path("cs_sawyer"), "images/attention", filename))
             self.img_attention[image] = cv_image
+
 
 
 ############ LOAD SOUND
@@ -150,12 +171,13 @@ class Head_Expressions(object):
             elif rospy.Time.now() > self.last_catch_attention_time + rospy.Duration(self.RATE_SEC):  # to catch the attention of visitors if nobody have push the button since 40 sec
                     self.last_catch_attention_time = rospy.Time.now()
                     playsound(self.sound_attention[str(random.randint(1, 11))])
-                    #for img in self.list_neutral:
-                        #self.publish(self.img_attention[img])
-                        #if self.robot_state != 0:
-                            #break
-                        #else:
-                            #time.sleep(0.06)
+                    for img in self.list_attention:
+                        self.publish(self.img_attention[img])
+                        if self.robot_state != 0:
+                            break
+                        else:
+                            time.sleep(0.06)
+                    playsound(self.sound_attention[str(random.randint(1, 11))])
             
             for img in self.list_neutral:
                 self.publish(self.img_neutral[img])

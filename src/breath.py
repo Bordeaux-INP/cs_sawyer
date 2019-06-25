@@ -27,8 +27,6 @@ from intera_interface import (
     JointLimits
 )
 
-
-
 class Breath(object):
 
 
@@ -46,24 +44,25 @@ class Breath(object):
         self.traj = MotionTrajectory(trajectory_options = traj_opts, limb = self.limb)
 
          # Set the waypoint options
-        wpt_opts = MotionWaypointOptions(max_joint_speed_ratio=0.1,
-                                        max_joint_accel=0.05)
+        wpt_opts = MotionWaypointOptions(max_joint_speed_ratio=0.05,
+                                        max_joint_accel=0.001)
         waypoint = MotionWaypoint(options = wpt_opts.to_msg(), limb = self.limb)
 
         # Append a waypoint at the current pose
         waypoint.set_joint_angles(self.limb.joint_ordered_angles())
         self.traj.append_waypoint(waypoint.to_msg())
+        self.limb.set_joint_position_speed(0.05)
 
 
 
         joint_angles=[0.9315458984375,-3.13684765625,-1.585208984375,1.92071875,0.3846748046875,-2.9311123046875,0.5105986328125]
         j1= joint_angles[1]
         j2= joint_angles[2]
-        j4=joint_angles[4]
+        #j4=joint_angles[4]
         x=0
-        while x < pi:
-            new_j1 = 0.12*sin(x)+j1
-            new_j2=0.12*sin(2*x)+j2
+        while x < 40*pi:
+            new_j1 = 0.07*sin(x)+j1
+            new_j2=0.09*sin(0.5*x)+j2
             #new_j4=0.12*sin(3*x)+j4
             joint_angles[1]=new_j1
             joint_angles[2]=new_j2
