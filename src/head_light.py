@@ -14,6 +14,7 @@ class Head_Light(object):
     BLINK_DURATION = 0.7     # Second of blinking on and off
 
     def __init__(self):
+        rospy.on_shutdown(self.light_off)
         self.l = Lights()
         #self.robot_light_fear = ['head_green_light', 'head_red_light']
         self.robot_light_fear = ['head_blue_light']
@@ -56,6 +57,9 @@ class Head_Light(object):
         while not rospy.is_shutdown():
             self.update_leds()
             rate.sleep()
+    
+    def light_off(self):
+        self.on_off(self.robot_all_leds,False)
 
 if __name__ == '__main__':
     rospy.init_node("cs_sawyer_head_light")

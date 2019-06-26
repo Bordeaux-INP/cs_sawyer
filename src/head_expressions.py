@@ -22,15 +22,15 @@ from cv_bridge import CvBridge
 
 class Head_Expressions(object):
 
-    RATE_SEC = 40
+    RATE_SEC = 20
 
     def __init__(self):
+        rospy.on_shutdown(self.screen_off)
         nbhappy = 150
         nbsad = 150
         nbneutral = 150
         nbattention = 70
         nbsound = 11
-
         self.img_neutral = {}
         self.img_happy = {}
         self.img_sad = {}
@@ -170,14 +170,17 @@ class Head_Expressions(object):
             
             elif rospy.Time.now() > self.last_catch_attention_time + rospy.Duration(self.RATE_SEC):  # to catch the attention of visitors if nobody have push the button since 40 sec
                     self.last_catch_attention_time = rospy.Time.now()
-                    playsound(self.sound_attention[str(random.randint(1, 11))])
+                  
                     for img in self.list_attention:
+                        
+                        if img=="a_00041":
+                            playsound(self.sound_attention[str(random.randint(1, 11))])
                         self.publish(self.img_attention[img])
                         if self.robot_state != 0:
                             break
                         else:
                             time.sleep(0.06)
-                    playsound(self.sound_attention[str(random.randint(1, 11))])
+                    
             
             for img in self.list_neutral:
                 self.publish(self.img_neutral[img])
@@ -210,6 +213,11 @@ class Head_Expressions(object):
                 time.sleep(0.03)
                 if self.robot_state != 3:
                     break
+        
+    def screen_off(self):
+        self.publish(self.img_neutral[self.list_neutral[16]])
+        print "lalaalalaalaaalal"
+
             
     def run(self):
         rate = rospy.Rate(5)

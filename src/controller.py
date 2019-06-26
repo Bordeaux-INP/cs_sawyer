@@ -70,6 +70,8 @@ class InteractionController(object):
         with open(join(self.rospack.get_path("cs_sawyer"), "config/poses.json")) as f:
             self.poses = json.load(f)
 
+        rospy.on_shutdown(self.clean_shut_down)
+
         rospy.Subscriber("cs_sawyer/button", ButtonPressed, self._cb_button_pressed)
         self.state_publisher = rospy.Publisher("/cs_sawyer/head_light",UInt8,queue_size=1) ###### 
         self.pub_breath = rospy.Publisher("/cs_sawyer/breath",Bool,queue_size=1) ###### 
@@ -164,6 +166,11 @@ class InteractionController(object):
         self._sticks.set_limb(self.limb)
         rospy.Subscriber("/robot/limb/right/endpoint_state", EndpointState, self._cb_endpoint_received)
         #self.limb.move_to_neutral(speed=self.speed)
+
+
+    def clean_shut_down(self):
+        self.move_to_joint_positions(self.poses["standby"])
+        self.rs.disable()
 
     def tuck_robot(self):
         self.limb.move_to_neutral(speed=self.speed)
