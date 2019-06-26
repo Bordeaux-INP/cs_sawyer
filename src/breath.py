@@ -46,7 +46,7 @@ class Breath(object):
         self.traj = MotionTrajectory(trajectory_options = traj_opts, limb = self.limb)
 
          # Set the waypoint options
-        wpt_opts = MotionWaypointOptions(max_joint_speed_ratio=0.3, joint_tolerances=0.7)
+        wpt_opts = MotionWaypointOptions(max_joint_speed_ratio=0.05, joint_tolerances=0.7)
                                         #max_joint_accel=0.1)
         waypoint = MotionWaypoint(options = wpt_opts.to_msg(), limb = self.limb)
         # Append a waypoint at the current pose
@@ -79,6 +79,8 @@ class Breath(object):
 
     def callback_update_breath1(self,msg):
         self.robot_state = msg.data
+        if self.robot_state==1:
+            self.traj.stop_trajectory()
 
     def callback_update_breath2(self,msg):
         self.breath_state = msg.data
@@ -88,7 +90,7 @@ class Breath(object):
         
         rate = rospy.Rate(10)
         while not rospy.is_shutdown():
-            if self.breath_state and self.robot_state==0:
+            if self.breath_state and self.robot_state == 0:
                 self.traj.send_trajectory(timeout=None)
            
             rate.sleep()

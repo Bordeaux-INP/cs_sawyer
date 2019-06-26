@@ -3,7 +3,6 @@
 
 
 import intera_interface
-from intera_interface import CHECK_VERSION
 from std_msgs.msg import UInt8
 import rospy
 import argparse	
@@ -21,10 +20,6 @@ class Head_Move(object):
         self._head = intera_interface.Head()
         # verify robot is enabled
         print("Getting robot state... ")
-        self._rs = intera_interface.RobotEnable(CHECK_VERSION)
-        self._init_state = self._rs.state().enabled
-        print("Enabling robot... ")
-        self._rs.enable()
         self.robot_state = 0 # normal
         rospy.Subscriber("cs_sawyer/head_light", UInt8, self.callback_update_move)
  
@@ -57,7 +52,7 @@ class Head_Move(object):
     def update_move(self):
         if self.robot_state == 0:   # normal
             self.wobble()
-        elif self.robot_state == 1 :   # error
+        elif self.robot_state == 1 and rospy.get_param("/cs_sawyer/error", "") == "full" :   # error
             self.set_neutral()
         elif self.robot_state == 2 or self.robot_state == 3:  # writing
             self.set_look_board()

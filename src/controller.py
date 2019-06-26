@@ -62,8 +62,6 @@ class InteractionController(object):
         self._sticks = Sticks()
         self._seed = None
         self.motions = self._sticks.get_cartesian_motions()
-        self.head = intera_interface.head.Head()
-        self.head.set_pan(-1.57)
         self.tfb = tf.TransformBroadcaster()
         self.last_vote = ""
         self.breath_state =0 # false
@@ -260,7 +258,6 @@ class InteractionController(object):
             self.error = True
         else:
             self.error = False
-        
         if self.error == True:
             self.pub_breath.publish(0)
             self.state_publisher.publish(1)  ###########
@@ -296,6 +293,7 @@ class InteractionController(object):
 
 
     def run(self):
+        rospy.sleep(0.5)
         self.start_robot()
         rospy.sleep(0.5)
         self.move_to_pause_position()
@@ -337,7 +335,7 @@ class InteractionController(object):
         self.light_pub_fear.publish(LightStatus(type=Int32(fear)))
 
     def move(self, type):
-        if self.last_vote != "" and self.last_vote != type:  ##############"" ?il faudra remettre sur pause position
+        if self.last_vote != "" and self.last_vote != type: 
             self.move_to_pause_position()
         vote_id = rospy.get_param("cs_sawyer/votes/{}/executed".format(type), 0)
         rospy.logwarn("Executing {} vote num {}".format(type, vote_id))

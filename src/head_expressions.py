@@ -15,6 +15,8 @@ import rospy
 from tf import LookupException
 import json, cv2, cv_bridge
 from numpy import zeros, uint8
+#from pygame import mixer
+
 from sensor_msgs.msg import Image
 from collections import deque
 from cv_bridge import CvBridge
@@ -22,7 +24,7 @@ from cv_bridge import CvBridge
 
 class Head_Expressions(object):
 
-    RATE_SEC = 20
+    RATE_SEC = 40
 
     def __init__(self):
         rospy.on_shutdown(self.screen_off)
@@ -47,6 +49,8 @@ class Head_Expressions(object):
         self.list_sad = []
         self.list_attention = []
         self.list_sound = []
+        #mixer.init()
+
 
 
 ########## HAPPY LOAD IMG
@@ -146,7 +150,7 @@ class Head_Expressions(object):
         
         for sound in self.list_sound:
             filename = sound + ".mp3"
-            path = join(self.rospack.get_path("cs_sawyer"), "sound", filename)
+            path = join(self.rospack.get_path("cs_sawyer"), "sound/attention", filename)
             self.sound_attention[sound] = path
 
     
@@ -200,6 +204,9 @@ class Head_Expressions(object):
             
         elif self.robot_state == 2:  # hope
             self.last_catch_attention_time = rospy.Time(0)
+            tab_sound=[join(self.rospack.get_path("cs_sawyer"), "sound/happy", "2.mp3"),join(self.rospack.get_path("cs_sawyer"), "sound/happy", "4.mp3")]
+            #mixer.music.load(tab_sound[random.randint(0, 1)]) # Paste The audio file location 
+            #mixer.music.play()
             for img in self.list_happy:
                 self.publish(self.img_happy[img])
                 time.sleep(0.03)
@@ -208,15 +215,19 @@ class Head_Expressions(object):
 
         elif self.robot_state == 3:  # fear
             self.last_catch_attention_time = rospy.Time(0)
+            
+            #mixer.music.load(join(self.rospack.get_path("cs_sawyer"), "sound/sad", "1.mp3")) # Paste The audio file location 
+            #mixer.music.play()
             for img in self.list_sad:
                 self.publish(self.img_sad[img])
                 time.sleep(0.03)
                 if self.robot_state != 3:
                     break
-        
+            #mixer.music.stop()
+      
     def screen_off(self):
         self.publish(self.img_neutral[self.list_neutral[16]])
-        print "lalaalalaalaaalal"
+     
 
             
     def run(self):
