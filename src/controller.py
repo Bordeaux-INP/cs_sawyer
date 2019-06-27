@@ -71,7 +71,7 @@ class InteractionController(object):
         rospy.on_shutdown(self.clean_shut_down)
 
         rospy.Subscriber("cs_sawyer/button", ButtonPressed, self._cb_button_pressed)
-        self.state_publisher = rospy.Publisher("/cs_sawyer/head_light",UInt8,queue_size=1) ###### 
+        self.state_publisher = rospy.Publisher("/cs_sawyer/head_light",UInt8,queue_size=1) ###### 0:normal   1:error    2:hope   3:fear  4:calibrate
         self.pub_breath = rospy.Publisher("/cs_sawyer/breath",Bool,queue_size=1) ###### 
         self.light_pub_fear = rospy.Publisher("cs_sawyer/light/fear", LightStatus, queue_size=1)
         self.light_pub_hope = rospy.Publisher("cs_sawyer/light/hope", LightStatus, queue_size=1)
@@ -259,13 +259,14 @@ class InteractionController(object):
         else:
             self.error = False
         if self.error == True:
-            self.pub_breath.publish(0)
+            self.pub_breath.publish(0)    #######
             self.state_publisher.publish(1)  ###########
    
     def check_calibration(self):
         if self.calibrate and self.calibrate_requested:
             if self.calibrate_state_machine_step == 0:
                 # Waiting for a second press
+                self.pub_breath.publish(0)  ##########
                 self.update_lights(self.ANIMATION_CALIBRATING)
                 self.calibrate_state_machine_step = 1
                 rospy.logwarn("Prepare init pose and press any button")
@@ -307,23 +308,19 @@ class InteractionController(object):
                     if self.waiting["hope"] > 0:
                         self.waiting["hope"] -= 1
                         self.state_publisher.publish(2) #####
-                        self.pub_breath.publish(0)
+                        self.pub_breath.publish(0)    ########
                         self.move("hope")
                     elif self.waiting["fear"] > 0:
                         self.waiting["fear"] -= 1
                         self.state_publisher.publish(3)   #####
-                        self.pub_breath.publish(0)
+                        self.pub_breath.publish(0)         ####
                         self.move("fear")
                     elif rospy.Time.now() > self.last_activity + rospy.Duration(5):
                         self.state_publisher.publish(0)  ######
-                    
                         if not self.breath_state:
-                            rospy.loginfo('pause')
+                            rospy.loginfo('pause position')   #######
                             self.move_to_pause_position()
-                            self.pub_breath.publish(1)
-
-                   
-                        
+                            self.pub_breath.publish(1)   ######                             
 
             rate.sleep()
         self.update_lights(self.ANIMATION_OFF)
@@ -333,6 +330,8 @@ class InteractionController(object):
         fear = animations[1]
         self.light_pub_hope.publish(LightStatus(type=Int32(hope)))
         self.light_pub_fear.publish(LightStatus(type=Int32(fear)))
+
+
 
     def move(self, type):
         if self.last_vote != "" and self.last_vote != type: 
