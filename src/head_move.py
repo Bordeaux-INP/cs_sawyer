@@ -41,10 +41,10 @@ class Head_Move(object):
             command_rate.sleep()
         
     def set_neutral(self):
-        self._head.set_pan(-1.57)
+        self._head.set_pan(-0.8,active_cancellation=True)
     
     def set_look_board(self):
-        self._head.set_pan(-2)
+        self._head.set_pan(-1.5,active_cancellation=True)
 
     def callback_update_move(self,msg):
         self.robot_state = msg.data
@@ -53,7 +53,7 @@ class Head_Move(object):
         if self.robot_state == 0:   # normal
             self.wobble()
         elif self.robot_state == 1 and rospy.get_param("/cs_sawyer/error", "") == "full" :   # error
-            self._head.set_pan(-1)
+            self.set_neutral()
         elif self.robot_state == 2 or self.robot_state == 3:  # writing
             self.set_look_board()
        
