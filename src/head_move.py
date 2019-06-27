@@ -30,7 +30,7 @@ class Head_Move(object):
         command_rate = rospy.Rate(1)
         control_rate = rospy.Rate(100)
         while self.robot_state== 0:
-            angle = random.uniform(-2.5, -0.5)
+            angle = random.uniform(-2.5, -0.7)
             while (not rospy.is_shutdown() and
                    not (abs(self._head.pan() - angle) <=
                        intera_interface.HEAD_PAN_ANGLE_TOLERANCE)):
@@ -44,7 +44,7 @@ class Head_Move(object):
         self._head.set_pan(-1.57)
     
     def set_look_board(self):
-        self._head.set_pan(-2.5)
+        self._head.set_pan(-2)
 
     def callback_update_move(self,msg):
         self.robot_state = msg.data
@@ -53,7 +53,7 @@ class Head_Move(object):
         if self.robot_state == 0:   # normal
             self.wobble()
         elif self.robot_state == 1 and rospy.get_param("/cs_sawyer/error", "") == "full" :   # error
-            self.set_neutral()
+            self._head.set_pan(-1)
         elif self.robot_state == 2 or self.robot_state == 3:  # writing
             self.set_look_board()
        
