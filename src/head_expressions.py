@@ -226,7 +226,7 @@ class Head_Expressions(object):
             #mixer.music.stop()
       
     def screen_off(self):
-        self.publish(self.img_neutral[self.list_neutral[16]])
+        self.publish(self.img_neutral[self.list_neutral[15]])
      
 
             
