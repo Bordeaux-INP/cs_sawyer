@@ -79,11 +79,13 @@ class Breath(object):
 
     def callback_update_breath1(self,msg):
         self.robot_state = msg.data
-        if self.robot_state==1:
+        if self.robot_state != 0:
             self.traj.stop_trajectory()
 
     def callback_update_breath2(self,msg):
         self.breath_state = msg.data
+        if not self.breath_state:
+            self.traj.stop_trajectory()
 
             
     def run(self):
