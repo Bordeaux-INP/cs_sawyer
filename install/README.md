@@ -6,5 +6,6 @@ Please edit occurences of username `pi` of file `cs_sawyer.service` with the rel
 sudo cp cs_sawyer.service /lib/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable cs_sawyer.service
+sudo cp power /etc/acpi/events/power
 ```
 
