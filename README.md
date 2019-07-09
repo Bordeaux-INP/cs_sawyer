@@ -47,12 +47,16 @@ Eteindre la Rasberry Pi
 
 #### 3.5 Recalibration de la position du tableau
 
-Attention : manipulation délicate.
+Appuyer pendant plus de 20 secondes sur MEFIANCE et CONFIANCE, les deux boutons clignotent à vitesse rapide et la respiration s'arrềte. Tenir appuyer le bouton en caoutchouc au bout du bras pour passer en mode zéro gravité (le robot se laisse manipuler). Positionner le robot en position d'écriture sur le baton le plus en bas à gauche possible dans la zone MEFIANCE, comme s'il venait de terminer le dessin du bâton, toujours en contact avec le tableau. Appuyer à nouveau 20 secondes sur MEFIANCE et CONFIANCE jusqu'à ce qu'ils s'éteignent. Un calcul d'environ 1 à 2 minute vérifie que tous les bâtons pourront être dessinés dans cette zone. Si oui, le robot revient en position normale et il est à nouveau prêt à voter. Sinon, MEFIANCE et CONFIANCE clignotent rapidement de nouveau et il est nécessaire de définir une autre position.
 
-## Maintenance technique avancée
+# Start and manage the setup in production
 
+See [production](./install#activate-autostart-on-this-machine).
+
+## Some commands to help start debugging
+```
 ssh robot@cs-sawyer-controller.local
 cd /home/robot/ros_ws/src/cs_sawyer
 ./start.bash
-rostopic pub /cs/sawyer/buttons <TAB>
-sudo service cs_sawyer status
+rostopic pub /cs/sawyer/buttons <TAB>   # Will list all available ROS topics
+```
