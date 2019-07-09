@@ -9,3 +9,10 @@ sudo systemctl enable cs_sawyer.service
 sudo cp power /etc/acpi/events/power
 ```
 
+## Manage services at runtime
+
+```
+sudo service cs_sawyer status  # Quick view of the current service status, should be RUNNING
+sudo journalctl -u cs_sawyer -f -a  # Detailed log output
+sudo service cs_sawyer restart  # Restart service
+```
