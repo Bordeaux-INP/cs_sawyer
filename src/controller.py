@@ -95,10 +95,12 @@ class InteractionController(object):
                     rospy.set_param("cs_sawyer/error", "collision")
                     rospy.logerr("COLLISION DETECTED! Wrench limit of {} above {} authorized during {} sec. Move robot and reset.".format(
                         average_wrench, self.WRENCH_LIMIT, len(self.endpoint)/100.))
+                    # Manual update of head screen message and light
+                    self.pub_breath.publish(0)
+                    self.state_publisher.publish(1)
     
     def callback_update_breath2(self,msg):
         self.breath_state = msg.data
-
 
     def _cb_button_pressed(self, msg):
         if msg.type.data == ButtonPressed.FEAR and not self.error:
@@ -252,6 +254,7 @@ class InteractionController(object):
             if not self.error:
                 rospy.set_param("cs_sawyer/error", "full")
                 rospy.logwarn("Board full, please reset...")
+                self.move_to_pause_position()
             self.error = True
             self.update_lights(self.ANIMATION_ERROR)
         elif self.external_error:
