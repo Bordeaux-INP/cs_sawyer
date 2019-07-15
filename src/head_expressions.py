@@ -203,7 +203,7 @@ class Head_Expressions(object):
             
         elif self.robot_state == 2:  # hope
             self.last_catch_attention_time = rospy.Time(0)
-            tab_sound=[join(self.rospack.get_path("cs_sawyer"), "sound/happy", "2.mp3"),join(self.rospack.get_path("cs_sawyer"), "sound/happy", "4.mp3")]
+            #tab_sound=[join(self.rospack.get_path("cs_sawyer"), "sound/happy", "2.mp3"),join(self.rospack.get_path("cs_sawyer"), "sound/happy", "4.mp3")]
             #mixer.music.load(tab_sound[random.randint(0, 1)]) # Paste The audio file location 
             #mixer.music.play()
             for img in self.list_happy:

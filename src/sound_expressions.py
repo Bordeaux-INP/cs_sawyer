@@ -23,7 +23,6 @@ class Sound_Expressions(object):
     RATE_SEC = 40
 
     def __init__(self):
-        rospy.on_shutdown(self.screen_off)
         nbhappy = 4
         nbsad = 3
         self.cpt_fear=0
