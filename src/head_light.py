@@ -53,7 +53,7 @@ class Head_Light(object):
 
             
     def run(self):
-        rate = rospy.Rate(10)
+        rate = rospy.Rate(5)
         while not rospy.is_shutdown():
             self.update_leds()
             rate.sleep()

@@ -4,6 +4,7 @@
 
 import intera_interface
 from std_msgs.msg import UInt8
+from std_msgs.msg import Bool
 import rospy
 import argparse	
 import time
@@ -21,6 +22,8 @@ class Head_Move(object):
         # verify robot is enabled
         print("Getting robot state... ")
         self.robot_state = 0 # normal
+        self.breath_state =0 # false
+        rospy.Subscriber("cs_sawyer/breath", Bool, self.callback_update_breath2)
         rospy.Subscriber("cs_sawyer/head_light", UInt8, self.callback_update_move)
  
     def wobble(self):
@@ -30,7 +33,7 @@ class Head_Move(object):
         command_rate = rospy.Rate(1)
         control_rate = rospy.Rate(100)
         while self.robot_state== 0:
-            angle = random.uniform(-2.5, -0.7)
+            angle = random.uniform(-2.2, -0.3)
             while (not rospy.is_shutdown() and
                    not (abs(self._head.pan() - angle) <=
                        intera_interface.HEAD_PAN_ANGLE_TOLERANCE)):
@@ -40,14 +43,18 @@ class Head_Move(object):
                 control_rate.sleep()
             command_rate.sleep()
         
-    def set_neutral(self):
-        self._head.set_pan(-0.8,active_cancellation=True)
-    
-    def set_look_board(self):
-        self._head.set_pan(-1.5,active_cancellation=True)
 
-    def callback_update_move(self,msg):
+    def set_neutral(self):
+        self._head.set_pan(-0.8, active_cancellation=True)
+    
+
+    def set_look_board(self):
+        self._head.set_pan(-0.9, active_cancellation=True)
+
+
+    def callback_update_move(self, msg):
         self.robot_state = msg.data
+
 
     def update_move(self):
         if self.robot_state == 0:   # normal
@@ -56,7 +63,11 @@ class Head_Move(object):
             self.set_neutral()
         elif self.robot_state == 2 or self.robot_state == 3:  # writing
             self.set_look_board()
-       
+    
+    def callback_update_breath2(self,msg):
+        self.breath_state = msg.data
+        if not self.breath_state:
+            self.set_neutral() 
 
             
     def run(self):

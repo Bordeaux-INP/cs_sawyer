@@ -11,7 +11,6 @@ from os import listdir
 import intera_interface
 import argparse
 from playsound import playsound
-import rospy
 from tf import LookupException
 import json, cv2, cv_bridge
 from numpy import zeros, uint8
