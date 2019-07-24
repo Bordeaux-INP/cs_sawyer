@@ -15,7 +15,6 @@ from tf import LookupException
 import json, cv2, cv_bridge
 from numpy import zeros, uint8
 #from pygame import mixer
-
 from sensor_msgs.msg import Image
 from collections import deque
 from cv_bridge import CvBridge
@@ -27,10 +26,10 @@ class Head_Expressions(object):
 
     def __init__(self):
         rospy.on_shutdown(self.screen_off)
-        nbhappy = 150
-        nbsad = 150
-        nbneutral = 150
-        nbattention = 70
+        nbhappy = 115
+        nbsad = 56
+        nbneutral = 260
+        nbattention = 50
         nbsound = 11
         self.img_neutral = {}
         self.img_happy = {}
@@ -55,16 +54,7 @@ class Head_Expressions(object):
 ########## HAPPY LOAD IMG
 
         for i in range (0,nbhappy):
-            img= 'c_0000'
-            if i <10:
-               img=img+str(i)
-            elif i<100:
-                img=img[:-1]
-                img=img+str(i)
-            else:
-                img=img[:-2]
-                img=img+str(i)
-
+            img= 'happy ('+ str(i+1)+')'
             self.list_happy.append(img)
 
         for image in self.list_happy:
@@ -83,16 +73,8 @@ class Head_Expressions(object):
 
 ########## SAD LOAD IMG
         for i in range (0,nbsad):
-            img= 't_0000'
-            if i <10:
-               img=img+str(i)
-            elif i<100:
-                img=img[:-1]
-                img=img+str(i)
-            else:
-                img=img[:-2]
-                img=img+str(i)
-
+            img='sad ('+ str(i+1)+')'
+          
             self.list_sad.append(img)
         for image in self.list_sad:
             filename = image + ".png"
@@ -102,16 +84,7 @@ class Head_Expressions(object):
 
 ########## NEUTRAL LOAD IMG
         for i in range (0,nbneutral):
-            img= 'n_0000'
-            if i <10:
-               img=img+str(i)
-            elif i<100:
-                img=img[:-1]
-                img=img+str(i)
-            else:
-                img=img[:-2]
-                img=img+str(i)
-
+            img= 'neutral ('+ str(i+1)+')'
             self.list_neutral.append(img)
         
         for image in self.list_neutral:
@@ -124,16 +97,7 @@ class Head_Expressions(object):
 ########### ATTENTION LOAD IMG
 
         for i in range (0,nbattention):
-            img= 'a_0000'
-            if i <10:
-               img=img+str(i)
-            elif i<100:
-                img=img[:-1]
-                img=img+str(i)
-            else:
-                img=img[:-2]
-                img=img+str(i)
-
+            img= 'attention ('+ str(i+1)+')'
             self.list_attention.append(img)
         for image in self.list_attention:
             filename = image + ".png"
@@ -176,7 +140,7 @@ class Head_Expressions(object):
                   
                     for img in self.list_attention:
                         
-                        if img=="a_00041":
+                        if img=="attention (14)":
                             playsound(self.sound_attention[str(random.randint(1, 11))])
                         self.publish(self.img_attention[img])
                         if self.robot_state != 0:
@@ -187,7 +151,7 @@ class Head_Expressions(object):
             
             for img in self.list_neutral:
                 self.publish(self.img_neutral[img])
-                time.sleep(0.03)
+                time.sleep(0.07)
                 if self.robot_state != 0:
                     break
 
@@ -203,26 +167,20 @@ class Head_Expressions(object):
             
         elif self.robot_state == 2:  # hope
             self.last_catch_attention_time = rospy.Time(0)
-            #tab_sound=[join(self.rospack.get_path("cs_sawyer"), "sound/happy", "2.mp3"),join(self.rospack.get_path("cs_sawyer"), "sound/happy", "4.mp3")]
-            #mixer.music.load(tab_sound[random.randint(0, 1)]) # Paste The audio file location 
-            #mixer.music.play()
             for img in self.list_happy:
                 self.publish(self.img_happy[img])
-                time.sleep(0.03)
+                time.sleep(0.07)
                 if self.robot_state != 2:
                     break
 
         elif self.robot_state == 3:  # fear
             self.last_catch_attention_time = rospy.Time(0)
-            
-            #mixer.music.load(join(self.rospack.get_path("cs_sawyer"), "sound/sad", "1.mp3")) # Paste The audio file location 
-            #mixer.music.play()
             for img in self.list_sad:
                 self.publish(self.img_sad[img])
-                time.sleep(0.03)
+                time.sleep(0.07)
                 if self.robot_state != 3:
                     break
-            #mixer.music.stop()
+
       
     def screen_off(self):
         self.publish(self.img_neutral[self.list_neutral[15]])
